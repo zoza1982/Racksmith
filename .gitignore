@@ -1,0 +1,15 @@
+/target/
+**/*.rs.bk
+/fuzz/target/
+/fuzz/corpus/
+/fuzz/artifacts/
+/fuzz/coverage/
+/specs/tla/states/
+/specs/tla/*.out
+/specs/tla/.tools/
+*.profraw
+*.profdata
+lcov.info
+/.idea/
+/.vscode/
+.DS_Store

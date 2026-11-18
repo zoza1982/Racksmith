@@ -1,0 +1,34 @@
+# Configuration for clippy lints enabled in Cargo.toml [workspace.lints.clippy].
+msrv = "1.98"
+allow-unwrap-in-tests = true
+allow-expect-in-tests = true
+allow-panic-in-tests = true
+allow-indexing-slicing-in-tests = true
+allow-print-in-tests = true
+allow-dbg-in-tests = true
+avoid-breaking-exported-api = false
+too-many-arguments-threshold = 5
+cognitive-complexity-threshold = 15
+too-many-lines-threshold = 80
+type-complexity-threshold = 200
+# Project and protocol names that clippy::doc_markdown would otherwise demand backticks for.
+doc-valid-idents = ["RackSmith", ".."]
+
+# API bans: these are architectural rules expressed as code, not prose.
+disallowed-methods = [
+  { path = "std::thread::sleep", reason = "blocks the async runtime; use tokio::time::sleep" },
+  { path = "std::env::set_var", reason = "process-global mutable state; pass configuration explicitly" },
+  { path = "std::env::remove_var", reason = "process-global mutable state; pass configuration explicitly" },
+  { path = "std::process::exit", reason = "skips destructors; return an error from main instead" },
+  { path = "std::mem::transmute", reason = "unsafe reinterpretation is banned" },
+  { path = "tokio::task::block_in_place", reason = "starves the runtime; restructure as async" },
+]
+disallowed-types = [
+  { path = "std::sync::Mutex", reason = "poisoning semantics; use parking_lot or tokio::sync::Mutex deliberately via an ADR" },
+  { path = "std::collections::HashMap", reason = "non-deterministic iteration order breaks reproducible output; use BTreeMap (or justify with #[expect])" },
+  { path = "std::collections::HashSet", reason = "non-deterministic iteration order breaks reproducible output; use BTreeSet (or justify with #[expect])" },
+]
+disallowed-macros = [
+  { path = "std::println", reason = "use tracing (libraries) or an explicit writer (CLI)" },
+  { path = "std::eprintln", reason = "use tracing (libraries) or an explicit writer (CLI)" },
+]

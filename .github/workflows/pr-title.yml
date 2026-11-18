@@ -1,0 +1,48 @@
+# Squash-merge is the only merge method, so the PR title becomes the commit message on `main`.
+# This enforces Conventional Commits on it.
+#
+# Trigger choice: plain `pull_request`, NOT `pull_request_target`. The action reads the title from
+# the event payload and needs only read access, which the read-only token GitHub issues to fork
+# PRs already provides. `pull_request_target` would run with a privileged token in the base
+# repository's context for no benefit.
+name: PR title
+
+on:
+  pull_request:
+    types: [opened, edited, reopened, synchronize]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  conventional-commit:
+    name: conventional commit title
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      pull-requests: read # Read the PR (and its commits, for single-commit PRs) to validate the title.
+    steps:
+      - uses: amannn/action-semantic-pull-request@2252a14e810aa9b85c2d560bd7070c802206ecf6 # v6.1.2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          types: |
+            feat
+            fix
+            docs
+            refactor
+            perf
+            test
+            build
+            ci
+            chore
+            revert
+          requireScope: false
+          # The subject must start with a lowercase letter: "feat(api): add machine tags".
+          subjectPattern: ^[a-z].+$
+          subjectPatternError: |
+            The subject "{subject}" in PR title "{title}" must start with a lowercase letter.

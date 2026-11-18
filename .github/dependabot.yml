@@ -1,0 +1,53 @@
+# Dependency updates, grouped to keep PR volume low. Commit messages follow Conventional Commits
+# ("build(deps): ..." / "ci(deps): ...") so they pass the PR title check unchanged.
+#
+# Some versions are pinned in places Dependabot cannot read; they are listed, with how to bump
+# them, under "Pinned tool versions" in CONTRIBUTING.md.
+version: 2
+
+updates:
+  - package-ecosystem: cargo
+    directories:
+      - /
+      - /fuzz
+    schedule:
+      interval: weekly
+      day: monday
+    # Let new releases age before adopting them, so yanked or compromised versions are caught first.
+    cooldown:
+      default-days: 7
+    commit-message:
+      prefix: build
+      include: scope
+    open-pull-requests-limit: 10
+    groups:
+      cargo-minor-and-patch:
+        update-types: [minor, patch]
+
+  - package-ecosystem: github-actions
+    directories:
+      - /
+      - /.github/actions/*
+    schedule:
+      interval: weekly
+      day: monday
+    cooldown:
+      default-days: 7
+    commit-message:
+      prefix: ci
+      include: scope
+    groups:
+      github-actions:
+        patterns: ["*"]
+
+  # The pinned stable toolchain in rust-toolchain.toml.
+  - package-ecosystem: rust-toolchain
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    cooldown:
+      default-days: 7
+    commit-message:
+      prefix: build
+      include: scope

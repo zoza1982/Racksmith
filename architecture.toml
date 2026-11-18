@@ -1,0 +1,84 @@
+# Architecture rules for the RackSmith workspace, enforced by `cargo xtask arch` (and in CI).
+#
+# This file is the machine-checked source of truth for crate layering and dependency policy.
+# Changing it is an architectural decision: open an ADR under docs/adr/ in the same PR.
+#
+# Layers: a crate may depend only on workspace crates in a STRICTLY LOWER layer that are also
+# listed in its `workspace-deps`. External crates must be listed in `deps`, `dev-deps` or
+# `build-deps` for the matching dependency kind. Anything not listed is rejected.
+
+# --- Layer 0: pure domain model. No I/O, no async, no logging, no other workspace crates. ---
+[crates.racksmith-domain]
+layer = 0
+workspace-deps = []
+deps = ["serde", "thiserror"]
+dev-deps = ["proptest", "serde_json"]
+build-deps = []
+
+# --- Layer 1: adapters. Translates the domain to the network (HTTP via axum). ---
+[crates.racksmith-api]
+layer = 1
+workspace-deps = ["racksmith-domain"]
+deps = ["axum", "serde", "thiserror", "tokio", "tracing"]
+dev-deps = ["http-body-util", "serde_json", "tower"]
+build-deps = []
+
+# --- Layer 2: composition root. The `racksmith` binary wires adapters together. ---
+[crates.racksmith-cli]
+layer = 2
+workspace-deps = ["racksmith-api", "racksmith-domain"]
+deps = ["anyhow", "clap", "tokio", "tracing", "tracing-subscriber"]
+dev-deps = []
+build-deps = []
+
+# --- Tooling: repository automation. Must never depend on product crates. ---
+[crates.xtask]
+layer = 0
+workspace-deps = []
+deps = ["anyhow", "cargo_metadata", "serde", "toml"]
+dev-deps = []
+build-deps = []
+
+# Dependency bans apply on top of the allowlists above, so that adding a banned crate to an
+# allowlist is still caught. `allowed-in` names the only crates that may depend on it.
+[[dependency-bans]]
+name = "anyhow"
+allowed-in = ["racksmith-cli", "xtask"]
+reason = "libraries expose typed errors (thiserror) so callers can match on them"
+
+[[dependency-bans]]
+name = "openssl"
+allowed-in = []
+reason = "TLS goes through rustls only (see deny.toml)"
+
+[[dependency-bans]]
+name = "openssl-sys"
+allowed-in = []
+reason = "TLS goes through rustls only (see deny.toml)"
+
+# Source bans: forbidden code patterns in a crate's `src/` directory. Comments and string
+# literals are ignored; matches respect identifier boundaries.
+[[source-bans]]
+crates = ["racksmith-domain"]
+pattern = "std::fs"
+reason = "the domain layer is pure: filesystem access belongs in an adapter crate"
+
+[[source-bans]]
+crates = ["racksmith-domain"]
+pattern = "std::net"
+reason = "the domain layer is pure: networking belongs in an adapter crate"
+
+[[source-bans]]
+crates = ["racksmith-domain"]
+pattern = "std::process"
+reason = "the domain layer is pure: process control belongs in the binary"
+
+[[source-bans]]
+crates = ["racksmith-domain"]
+pattern = "tokio"
+reason = "the domain layer is synchronous and runtime-agnostic"
+
+[[source-bans]]
+crates = ["racksmith-domain"]
+pattern = "async fn"
+reason = "the domain layer is synchronous; async belongs in adapter crates"

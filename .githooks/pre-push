@@ -1,0 +1,10 @@
+#!/bin/sh
+# Local quality gate before anything leaves the machine: every ci-success check that runs on one
+# machine (CI also runs MSRV, coverage, macOS/Windows and the Verify workflow).
+# Enable with `cargo xtask install-hooks`; bypass in an emergency with `git push --no-verify`.
+set -eu
+
+if ! cargo xtask ci; then
+    echo "pre-push: 'cargo xtask ci' failed; fix the reported step before pushing." >&2
+    exit 1
+fi

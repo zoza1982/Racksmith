@@ -1,0 +1,67 @@
+name: Bug report
+description: RackSmith behaves differently from what its documentation or API contract says.
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting. Security problems must NOT be filed here — use private vulnerability
+        reporting (see SECURITY.md).
+  - type: input
+    id: version
+    attributes:
+      label: RackSmith version
+      description: Output of `racksmith --version`, or the commit SHA you built from.
+      placeholder: 0.1.0 / 1a2b3c4
+    validations:
+      required: true
+  - type: dropdown
+    id: component
+    attributes:
+      label: Component
+      options:
+        - Domain model / machine lifecycle
+        - HTTP API
+        - CLI
+        - Build, CI or tooling
+        - Documentation
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Steps to reproduce
+      description: Exact commands, API requests or input. Minimal is best.
+      placeholder: |
+        1. racksmith serve --listen 127.0.0.1:5240
+        2. curl -X POST localhost:5240/api/v1/machines -d '{"mac":"..."}'
+      render: shell
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+      description: Include the full error output or response body.
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: OS, architecture, and anything relevant about the hardware being managed.
+      placeholder: Ubuntu 24.04, x86_64
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Checks
+      options:
+        - label: I searched existing issues and this is not a duplicate.
+          required: true

@@ -1,0 +1,7 @@
+# zizmor configuration (https://docs.zizmor.sh/configuration/), picked up automatically by the
+# `workflow-lint` CI job. Every disabled audit states why it does not apply.
+rules:
+  self-repository:
+    # Suggests the new `$/path` syntax for local actions, which actionlint (also run in CI) does
+    # not accept yet. `./path` is equivalent for checked-out workflows.
+    disable: true

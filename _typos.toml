@@ -1,0 +1,8 @@
+# Spell-checking configuration for `typos` (https://github.com/crate-ci/typos), run by
+# `cargo xtask ci` and in CI. Add project vocabulary under [default.extend-words] rather than
+# excluding whole files.
+
+[files]
+extend-exclude = ["LICENSE", "Cargo.lock", "target/", "fuzz/corpus/", "fuzz/artifacts/"]
+
+[default.extend-words]

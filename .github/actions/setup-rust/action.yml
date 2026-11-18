@@ -1,0 +1,28 @@
+# Installs the Rust toolchain pinned in rust-toolchain.toml and restores the cargo cache.
+#
+# rust-toolchain.toml is the single source of truth for the toolchain version and components, so
+# no version is repeated in any workflow. Caches are only written from `main`: pull requests read
+# them but can never poison them.
+name: Set up Rust
+description: Install the pinned toolchain from rust-toolchain.toml and restore the cargo cache.
+
+inputs:
+  cache-key:
+    description: Extra cache key, so jobs that build different artifacts keep separate caches.
+    required: false
+    default: ""
+
+runs:
+  using: composite
+  steps:
+    - name: Install toolchain from rust-toolchain.toml
+      shell: bash
+      run: |
+        rustup toolchain install
+        rustup show active-toolchain
+
+    - name: Restore cargo cache
+      uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+      with:
+        key: ${{ inputs.cache-key }}
+        save-if: ${{ github.ref == 'refs/heads/main' }}

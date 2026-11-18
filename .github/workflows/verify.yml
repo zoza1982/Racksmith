@@ -1,0 +1,153 @@
+# Verification beyond unit tests: the TLA+ model of the machine lifecycle (TLC), Kani bounded
+# model checking of the domain crate, and coverage-guided fuzzing.
+#
+# It runs on every pull request, in the merge queue and on `main`, with no path filter: a change
+# to Cargo.toml, Cargo.lock or the toolchain changes the verified code as much as an edit to the
+# domain crate does. `verify-success` is a required check, like `ci-success`. The nightly
+# schedule fuzzes for longer and keeps the fuzz corpus growing between runs.
+name: Verify
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  merge_group:
+  schedule:
+    - cron: "17 3 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  tla:
+    name: TLA+ (TLC)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@d1374f8ac74474200d16ef8ecee22c7ae7a51880 # v6.3.0
+        with:
+          distribution: temurin
+          java-version: "21"
+      - name: Model-check MachineLifecycle.tla
+        run: ./specs/tla/check.sh
+
+  kani:
+    name: Kani
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      # Kani pins the nightly toolchain it needs; `cargo kani setup` installs it.
+      KANI_VERSION: 0.68.0
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install toolchain from rust-toolchain.toml
+        run: rustup toolchain install
+      # Installed directly rather than through a third-party action, so every piece of code
+      # that runs is pinned here: the crate version is locked and verified by cargo.
+      - name: Install Kani
+        run: |
+          cargo install --locked kani-verifier --version "${KANI_VERSION}"
+          cargo kani setup
+      - name: Prove the Kani harnesses
+        run: cargo kani --package racksmith-domain
+
+  fuzz:
+    name: fuzz
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    env:
+      CARGO_FUZZ_VERSION: 0.13.2
+      # libFuzzer instrumentation needs nightly. A dated nightly keeps runs reproducible: bump
+      # it deliberately (see "Pinned tool versions" in CONTRIBUTING.md).
+      FUZZ_NIGHTLY: nightly-2026-11-01
+      FUZZ_SECONDS: ${{ github.event_name == 'schedule' && '300' || '60' }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install the pinned nightly toolchain
+        run: rustup toolchain install "${FUZZ_NIGHTLY}" --profile minimal
+      - name: Install cargo-fuzz
+        run: cargo "+${FUZZ_NIGHTLY}" install cargo-fuzz --locked --version "${CARGO_FUZZ_VERSION}"
+      # Every run starts from the corpus the nightly schedule built up, so coverage accumulates
+      # instead of being rediscovered from nothing.
+      - name: Restore the fuzz corpus
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: fuzz/corpus
+          key: fuzz-corpus-${{ github.run_id }}
+          restore-keys: fuzz-corpus-
+      # Every target runs even if an earlier one crashes, so one bug cannot hide another.
+      - name: Fuzz every target
+        run: |
+          targets="$(cargo "+${FUZZ_NIGHTLY}" fuzz list)"
+          if [[ -z "${targets}" ]]; then
+            echo "::error::cargo fuzz list found no fuzz targets"
+            exit 1
+          fi
+          failed=()
+          for target in ${targets}; do
+            echo "::group::fuzz ${target} for ${FUZZ_SECONDS}s"
+            if ! cargo "+${FUZZ_NIGHTLY}" fuzz run "${target}" -- -max_total_time="${FUZZ_SECONDS}"; then
+              failed+=("${target}")
+              echo "::error::fuzz target ${target} failed"
+            fi
+            echo "::endgroup::"
+          done
+          if (( ${#failed[@]} > 0 )); then
+            echo "::error::failing fuzz targets: ${failed[*]}"
+            exit 1
+          fi
+      - name: Upload crashing inputs
+        if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: fuzz-artifacts
+          path: fuzz/artifacts/
+          if-no-files-found: ignore
+      # Only the scheduled run on `main` writes the cache, so a pull request can never poison
+      # the corpus that later runs start from.
+      - name: Minimize the corpus
+        if: github.event_name == 'schedule'
+        run: |
+          for target in $(cargo "+${FUZZ_NIGHTLY}" fuzz list); do
+            cargo "+${FUZZ_NIGHTLY}" fuzz cmin "${target}"
+          done
+      - name: Save the fuzz corpus
+        if: github.event_name == 'schedule'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: fuzz/corpus
+          key: fuzz-corpus-${{ github.run_id }}
+
+  verify-success:
+    name: verify-success
+    if: always()
+    needs: [tla, kani, fuzz]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Require every job to succeed
+        env:
+          NEEDS: ${{ toJSON(needs) }}
+        run: |
+          failed="$(jq --raw-output 'to_entries[] | select(.value.result != "success") | "\(.key): \(.value.result)"' <<< "${NEEDS}")"
+          if [[ -n "${failed}" ]]; then
+            echo "${failed}"
+            echo "::error::Verification jobs did not succeed (listed above)."
+            exit 1
+          fi
+          echo "All verification jobs succeeded."

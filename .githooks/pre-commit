@@ -1,0 +1,9 @@
+#!/bin/sh
+# Fast pre-commit gate: formatting only. The full gate runs on pre-push.
+# Enable with `cargo xtask install-hooks`; bypass in an emergency with `git commit --no-verify`.
+set -eu
+
+if ! cargo fmt --all --check; then
+    echo "pre-commit: formatting differs; run 'cargo fmt --all' and re-stage." >&2
+    exit 1
+fi

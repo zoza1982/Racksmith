@@ -1,0 +1,6 @@
+[alias]
+xtask = "run --quiet --package xtask --"
+
+[env]
+# Deterministic, offline-friendly property tests in CI can override via PROPTEST_CASES.
+PROPTEST_CASES = { value = "256", force = false }

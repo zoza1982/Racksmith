@@ -1,0 +1,261 @@
+# The deterministic quality gate. `cargo xtask ci` runs the same commands locally, except the jobs
+# that need another toolchain or platform: MSRV, coverage, and the macOS and Windows runs.
+# Branch rules require `ci-success` (this workflow) and `verify-success` (verify.yml).
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  merge_group:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: short
+  # .config/nextest.toml: run every test (no fail-fast) and write JUnit output.
+  NEXTEST_PROFILE: ci
+
+jobs:
+  fmt:
+    name: rustfmt
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install toolchain from rust-toolchain.toml
+        run: rustup toolchain install
+      - run: cargo fmt --all --check
+      - name: Check fuzz/ formatting (a separate cargo workspace)
+        run: cargo fmt --manifest-path fuzz/Cargo.toml --check
+
+  # Every OS family, so `cfg(unix)` and `cfg(windows)` code is linted too.
+  clippy:
+    name: clippy (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup-rust
+      - run: cargo clippy --workspace --all-targets --all-features --locked -- -D warnings
+      # fuzz/ is a separate cargo workspace; it builds libFuzzer with the system C++ compiler.
+      - name: Lint fuzz targets
+        if: runner.os == 'Linux'
+        run: cargo clippy --manifest-path fuzz/Cargo.toml --all-targets --locked -- -D warnings
+
+  test:
+    name: test (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup-rust
+      - uses: taiki-e/install-action@75a7c0f87bd666af3cdb75c5b9e9d03ab6044e6f # v2.90.6
+        with:
+          tool: cargo-nextest
+      - name: Tests (nextest)
+        run: cargo nextest run --workspace --all-features --locked
+      - name: Doctests (nextest does not run them)
+        run: cargo test --doc --workspace --all-features --locked
+      - name: Upload test report
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: junit-${{ matrix.os }}
+          path: target/nextest/ci/junit.xml
+          if-no-files-found: warn
+
+  docs:
+    name: rustdoc
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      RUSTDOCFLAGS: -D warnings
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup-rust
+      - run: cargo doc --workspace --no-deps --all-features --locked
+
+  deny:
+    name: cargo-deny
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install toolchain from rust-toolchain.toml
+        run: rustup toolchain install
+      - uses: taiki-e/install-action@75a7c0f87bd666af3cdb75c5b9e9d03ab6044e6f # v2.90.6
+        with:
+          tool: cargo-deny
+      - run: cargo deny --locked check
+      - name: Check the fuzz project's dependencies (a separate lockfile)
+        run: cargo deny --manifest-path fuzz/Cargo.toml --locked check
+
+  arch:
+    name: architecture + generated docs
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup-rust
+      - name: Enforce architecture.toml
+        run: cargo xtask arch
+      - name: Check generated docs are in sync
+        run: cargo xtask docs
+
+  msrv:
+    name: MSRV
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup-rust
+        with:
+          cache-key: msrv
+      - name: Read rust-version from Cargo.toml
+        id: msrv
+        run: |
+          version="$(cargo metadata --no-deps --format-version 1 \
+            | jq --raw-output '[.packages[].rust_version] | unique | if length == 1 then .[0] else error("crates disagree on rust-version: \(.)") end')"
+          # rustup resolves "1.98" to the newest 1.98.x patch release; the MSRV is the first one.
+          if [[ "${version}" =~ ^[0-9]+\.[0-9]+$ ]]; then
+            version="${version}.0"
+          fi
+          echo "version=${version}" >> "${GITHUB_OUTPUT}"
+      - name: Install MSRV toolchain
+        env:
+          MSRV: ${{ steps.msrv.outputs.version }}
+        run: rustup toolchain install "${MSRV}" --profile minimal
+      - name: Check with MSRV toolchain
+        env:
+          MSRV: ${{ steps.msrv.outputs.version }}
+        run: cargo "+${MSRV}" check --workspace --all-targets --all-features --locked
+
+  machete:
+    name: unused dependencies
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: taiki-e/install-action@75a7c0f87bd666af3cdb75c5b9e9d03ab6044e6f # v2.90.6
+        with:
+          tool: cargo-machete
+      - run: cargo machete
+
+  typos:
+    name: typos
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: crate-ci/typos@276087d9a4f06398b3e04825487805e2d7375888 # v1.52.2
+
+  coverage:
+    name: coverage
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup-rust
+        with:
+          cache-key: coverage
+      - uses: taiki-e/install-action@75a7c0f87bd666af3cdb75c5b9e9d03ab6044e6f # v2.90.6
+        with:
+          tool: cargo-llvm-cov,cargo-nextest
+      # A floor, not a target: it catches large untested additions. Raise it as coverage grows.
+      - name: Measure coverage
+        run: cargo llvm-cov nextest --workspace --all-features --locked --lcov --output-path lcov.info --fail-under-lines 70
+      - name: Summarize coverage
+        run: cargo llvm-cov report --summary-only >> "${GITHUB_STEP_SUMMARY}"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: lcov
+          path: lcov.info
+          if-no-files-found: error
+
+  workflow-lint:
+    name: workflow lint
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      ACTIONLINT_VERSION: v1.7.12
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: actionlint
+        # `go install` verifies the module against the Go checksum database; shellcheck, which
+        # actionlint uses for `run:` scripts, is preinstalled on ubuntu-latest.
+        run: |
+          go install "github.com/rhysd/actionlint/cmd/actionlint@${ACTIONLINT_VERSION}"
+          "$(go env GOPATH)/bin/actionlint" -color
+      - name: zizmor
+        uses: zizmorcore/zizmor-action@45d7276c9ca790aabd705e31ca99c6185c3e76dd # v0.8.1
+        with:
+          version: 1.32.0
+          advanced-security: false
+          persona: regular
+
+  ci-success:
+    name: ci-success
+    if: always()
+    needs:
+      - fmt
+      - clippy
+      - test
+      - docs
+      - deny
+      - arch
+      - msrv
+      - machete
+      - typos
+      - coverage
+      - workflow-lint
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Require every job to succeed
+        env:
+          NEEDS: ${{ toJSON(needs) }}
+        run: |
+          failed="$(jq --raw-output 'to_entries[] | select(.value.result != "success") | "\(.key): \(.value.result)"' <<< "${NEEDS}")"
+          if [[ -n "${failed}" ]]; then
+            echo "${failed}"
+            echo "::error::Required jobs did not succeed (listed above)."
+            exit 1
+          fi
+          echo "All required jobs succeeded."

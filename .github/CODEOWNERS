@@ -1,0 +1,24 @@
+# Code owners: https://docs.github.com/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners
+# The last matching pattern wins.
+
+# Default owner for everything.
+*                       @zoza1982
+
+# Guardrails. These files define the deterministic constraints (lints, bans, layering, supply
+# chain), the verification models and the CI that enforces them. Weakening any of them weakens
+# every future change, so each change here requires explicit owner review — even when the rest
+# of a PR is routine. They name the same owner as `*` today and stay explicit so that adding
+# maintainers to `*` never loosens review of the guardrails.
+/Cargo.toml             @zoza1982
+/Cargo.lock             @zoza1982
+/clippy.toml            @zoza1982
+/rustfmt.toml           @zoza1982
+/rust-toolchain.toml    @zoza1982
+/deny.toml              @zoza1982
+/architecture.toml      @zoza1982
+/_typos.toml            @zoza1982
+/.cargo/                @zoza1982
+/xtask/                 @zoza1982
+/specs/                 @zoza1982
+/fuzz/                  @zoza1982
+/.github/               @zoza1982

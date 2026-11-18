@@ -1,0 +1,20 @@
+# cargo-nextest configuration (https://nexte.st/docs/configuration/).
+# Select a profile with `--profile <name>` or the NEXTEST_PROFILE environment variable.
+
+[profile.default]
+# Locally, stop at the first failure for a fast feedback loop.
+fail-fast = true
+retries = 0
+slow-timeout = { period = "30s", terminate-after = 4 }
+
+[profile.ci]
+# In CI, run everything so a single run reports every failure. Flaky tests are bugs:
+# no retries hide them.
+fail-fast = false
+retries = 0
+failure-output = "immediate-final"
+slow-timeout = { period = "60s", terminate-after = 5 }
+
+[profile.ci.junit]
+# Written to target/nextest/ci/junit.xml for CI test reporting.
+path = "junit.xml"
