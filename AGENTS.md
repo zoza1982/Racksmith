@@ -7,6 +7,10 @@ This file is the **top and weakest layer** of the [trust pyramid](docs/trust-pyr
 rules are enforced by the compiler, lints, `cargo xtask` or CI, and this file points at those
 mechanisms instead of repeating them. What is left here is judgment that code cannot check.
 
+**What to build** is defined in the [PRD](docs/prd.md): requirement IDs (R1…), milestones and the
+decisions in §9. Reference requirement IDs in PR descriptions. Changing scope, targets or a
+decision there is a product decision for the owner, never a side effect of a code change.
+
 ## The gate
 
 ```sh
