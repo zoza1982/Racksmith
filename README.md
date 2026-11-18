@@ -6,27 +6,41 @@
 [![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
 
 RackSmith is an open-source, Rust-native alternative to
-[Canonical MAAS](https://maas.io/) (Metal-as-a-Service): discovery, commissioning, allocation
-and operating system deployment for racks of physical servers.
+[Canonical MAAS](https://maas.io/) (Metal-as-a-Service), built for hyperscale and GPU clusters:
+discovery, commissioning, firmware lifecycle, allocation and fast operating system deployment for
+racks of physical servers.
 
 > [!WARNING]
 > **Status: pre-alpha.** The repository is being bootstrapped. Today it contains the machine
 > lifecycle model, an in-memory HTTP API and a CLI. It cannot boot, inventory or deploy a real
 > machine yet. Do not point it at hardware you care about.
 
-## Goals
+## Why RackSmith: the MAAS pains we attack
 
-MAAS is mature and capable. RackSmith aims at the same job with a different set of trade-offs:
+MAAS is mature and capable, and we respect it. RackSmith is built for **hyperscale and GPU
+clusters**, where these trade-offs hurt the most:
 
-- **One static binary.** No snap, no separate region and rack controller packages to install.
-- **Few moving parts.** The goal is to run without a mandatory PostgreSQL server for small
-  sites, with an external database as an option for larger ones. The current in-memory store is
-  a placeholder until that is designed.
-- **A verified core.** The machine lifecycle is a small state machine that is model-checked with
-  TLA+ and Kani and property-tested, so the most dangerous logic in a provisioning system (which
-  machine may be wiped, when) is the best tested.
-- **Built to be developed with AI agents safely.** Strict, mechanically enforced guardrails
-  rather than review alone. See [How quality is enforced](#how-quality-is-enforced).
+| MAAS pain | RackSmith answer |
+|---|---|
+| **Complex to install and operate.** Snap/deb packages, separate region and rack controllers, a required PostgreSQL server, and upgrades that touch all of them. | **One static binary** with embedded storage, or the same core as a **Kubernetes operator**. Upgrading means replacing the binary. |
+| **Slow deployments.** An ephemeral boot followed by an installer run (curtin) takes many minutes per machine. | **Block-image streaming** from an in-RAM Rust agent, then kexec or reboot. Target: **under 5 minutes from power-on to OS-ready**, with 1,000 machines deploying at once and a public, reproducible benchmark. |
+| **Ubuntu-first.** Other operating systems need separately built custom images. | **Any OS is first-class:** Ubuntu, Debian, RHEL-family, Flatcar, Talos and your own golden images, configured with cloud-init or Ignition. |
+| **Imperative and database-centric.** State lives in the MAAS database and is driven by UI or API calls; nothing continuously reconciles it. | **Declarative desired state in Git**, continuously reconciled, in the same spec/status shape as Kubernetes. |
+| **No first-class GPU-fleet lifecycle.** Firmware baselines, burn-in and quarantine are only possible through custom scripts. | **Firmware and BIOS baselines with drift remediation, GPU/fabric readiness checks (DCGM, NVLink, InfiniBand), and automatic quarantine of unhealthy nodes.** |
+
+Also built in from the start:
+- a pluggable network stack (proxyDHCP, TFTP, HTTP boot, iPXE, with Kea and NetBox adapters);
+- Redfish and IPMI drivers;
+- a gRPC API with a REST gateway;
+- mTLS between the control plane and its agents.
+
+Later milestones add TPM attestation and Cluster API / Terraform providers.
+
+The core is also **verified**: the machine lifecycle (which machine may be wiped, and when) is
+model-checked with TLA+ and Kani and property-tested. And it is **built to be developed safely
+with AI agents**; see [How quality is enforced](#how-quality-is-enforced).
+
+The full product plan is in the [Product Requirements Document](docs/prd.md).
 
 ## Quickstart
 
@@ -100,12 +114,13 @@ cargo xtask ci
 
 ## Roadmap
 
-- [ ] Discovery: DHCP, PXE and iPXE boot of unknown machines
-- [ ] Commissioning: hardware inventory (CPU, memory, disks, NICs) and burn-in tests
-- [ ] BMC power control: IPMI and Redfish
-- [ ] Image deployment: OS images written to disk, cloud-init configuration
-- [ ] API and CLI: authenticated, versioned API with a full-featured client
-- [ ] High availability: multiple controllers without a single point of failure
+See the [PRD milestones](docs/prd.md#8-milestones) for scope and exit criteria.
+
+- [x] **M0 Bootstrap:** workspace, guardrails, CI, model-checked lifecycle
+- [ ] **M1 Fast-deploy MVP:** single binary, proxyDHCP/TFTP/HTTP boot/iPXE, Redfish + IPMI, image-streaming agent, 5 OS recipes, gRPC API + CLI, virtual lab in CI, under 5 minutes to OS-ready, 10k-node load lab, MAAS benchmark
+- [ ] **M2 Declarative platform:** Kubernetes operator, GitOps, HA (Raft), Cluster API + Terraform, NetBox/Kea, Secure Boot + TPM attestation
+- [ ] **M3 GPU fleet:** firmware/BIOS baselines, DCGM and fabric checks, automatic quarantine, reprovisioning in seconds, multi-site
+- [ ] **M4 Scale and edge:** peer-to-peer image distribution, DPU-isolated boot, Slurm, IPv6
 
 ## Contributing
 
