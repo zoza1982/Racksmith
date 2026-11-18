@@ -10,6 +10,7 @@ mechanisms instead of repeating them. What is left here is judgment that code ca
 **What to build** is defined in the [PRD](docs/prd.md): requirement IDs (R1…), milestones and the
 decisions in §9. Reference requirement IDs in PR descriptions. Changing scope, targets or a
 decision there is a product decision for the owner, never a side effect of a code change.
+The M1 work breakdown (task IDs, dependencies, gates) is [docs/plan/m1.md](docs/plan/m1.md).
 
 ## The gate
 

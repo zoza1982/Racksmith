@@ -3075,6 +3075,8 @@ runtime shim; `turmoil` joins for M2 partition cases).
 
 ## 14. M1 scope cut and build order
 
+The executable M1 plan (tasks, weeks, dependencies, gates) is [docs/plan/m1.md](../plan/m1.md).
+
 ### 14.1 In M1, stretch and deferred
 
 The M1 baseline follows the MVP proposal's scope table and adds only the safety core from the
