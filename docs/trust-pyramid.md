@@ -76,9 +76,9 @@ Every tier is wired into GitHub so it cannot be skipped:
 | Conventional Commit PR titles       | [`.github/workflows/pr-title.yml`](../.github/workflows/pr-title.yml)                                                                                                                       |
 | Static analysis and posture         | [`.github/workflows/codeql.yml`](../.github/workflows/codeql.yml), [`.github/workflows/scorecard.yml`](../.github/workflows/scorecard.yml)                                                  |
 | Review of the guardrails themselves | [`.github/CODEOWNERS`](../.github/CODEOWNERS)                                                                                                                                               |
-| Branch rules on `main`              | Rulesets as code in [`.github/rulesets/`](../.github/rulesets/): pull requests only, squash merge, both checks green with no bypass, code-owner review, no force pushes or deletions. **Pending:** applied after the first push; see [GOVERNANCE.md](../GOVERNANCE.md#branch-rules). |
+| Branch rules on `main`              | Rulesets as code in [`.github/rulesets/`](../.github/rulesets/): pull requests only, squash merge, both checks green with no bypass, code-owner review, no force pushes or deletions. Active; see [GOVERNANCE.md](../GOVERNANCE.md#branch-rules). |
 
-Once the rulesets are applied, an agent cannot weaken a lint, an allowlist or a CI job to get its
+With the rulesets active, an agent cannot weaken a lint, an allowlist or a CI job to get its
 change merged without a maintainer explicitly approving it, because every file is code-owned and
 agents open pull requests from a bot account whose work the maintainer must review.
 
