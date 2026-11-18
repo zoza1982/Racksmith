@@ -16,9 +16,8 @@ project's direction.
 ## Branch rules
 
 `main` is protected by two GitHub repository rulesets, kept as code in
-[`.github/rulesets/`](.github/rulesets/). They can only be applied once `main` exists and both
-checks have reported at least once, so until the maintainer applies them (command below), the
-rules here describe the intended configuration, not an enforced one.
+[`.github/rulesets/`](.github/rulesets/). Both are active. Changes to them go through a pull
+request that edits the JSON, followed by re-applying it with the command below.
 
 - [`main-checks.json`](.github/rulesets/main-checks.json): changes arrive only through pull
   requests, are squash-merged, need `ci-success` and `verify-success` green, and `main` cannot be
@@ -37,7 +36,7 @@ the only code owner. So:
 
 When a second maintainer joins, they are added to CODEOWNERS and the review bypass is removed.
 
-Rulesets are applied with the GitHub API (after the first push, once both checks have run):
+Rulesets are (re-)applied with the GitHub API (for an existing ruleset, `PUT .../rulesets/<id>` instead of `POST`):
 
 ```sh
 for ruleset in .github/rulesets/*.json; do
