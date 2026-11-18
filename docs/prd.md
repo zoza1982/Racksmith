@@ -174,12 +174,12 @@ table, the conformance test, the TLA+ model and the generated docs together, and
 
 | # | Decision | Rationale | ADR |
 |---|---|---|---|
-| D1 | Core designed for both front ends from day one; **the M1 release ships the single binary, the operator ships in M2** | The user asked for both from day one. Making the core front-end-agnostic in M1 keeps that promise without doubling the MVP scope for a solo maintainer. *The owner can revisit this.* | to write |
-| D2 | **gRPC/protobuf contracts as the source of truth**, with a REST gateway | Typed clients, streamed deploy progress, and a single schema for the CLI, operator and Terraform | to write |
-| D3 | **Block-image streaming** from an in-RAM Rust agent, not OS installers | Fastest and works for any OS; installers are the main cause of P2 | to write |
-| D4 | **Pluggable network services** with built-in defaults (proxyDHCP by default) | Fits into existing DHCP/IPAM at hyperscale sites, and still works with zero dependencies | to write |
-| D5 | **Embedded store** behind a trait, with Raft for HA in M2 | Removes the PostgreSQL dependency (P1); the trait keeps an external database possible | to write |
-| D6 | **Virtual lab is the CI test bed** | No dedicated hardware lab yet (§10) | to write |
+| D1 | Core designed for both front ends from day one; **the M1 release ships the single binary, the operator ships in M2** | The user asked for both from day one. Making the core front-end-agnostic in M1 keeps that promise without doubling the MVP scope for a solo maintainer. *The owner can revisit this.* | [0005](adr/0005-one-core-two-front-ends.md) |
+| D2 | **gRPC/protobuf contracts as the source of truth**, with a REST gateway | Typed clients, streamed deploy progress, and a single schema for the CLI, operator and Terraform | [0006](adr/0006-protobuf-contracts-grpc-api.md) |
+| D3 | **Block-image streaming** from an in-RAM Rust agent, not OS installers | Fastest and works for any OS; installers are the main cause of P2 | [0007](adr/0007-block-image-streaming-deploy.md) |
+| D4 | **Pluggable network services** with built-in defaults (proxyDHCP by default) | Fits into existing DHCP/IPAM at hyperscale sites, and still works with zero dependencies | [0008](adr/0008-pluggable-network-services.md) |
+| D5 | **Embedded store** behind a trait, with Raft for HA in M2 | Removes the PostgreSQL dependency (P1); the trait keeps an external database possible | [0009](adr/0009-embedded-store-behind-trait.md) |
+| D6 | **Virtual lab is the CI test bed** | No dedicated hardware lab yet (§10) | [0010](adr/0010-virtual-lab-ci-testbed.md) |
 | D7 | **OSS plus a support and hosted business model**: everything stays Apache-2.0 | No open-core feature fences; the hosted control plane is the commercial product | [0004](adr/0004-apache-2-license.md) |
 
 ## 10. Risks
