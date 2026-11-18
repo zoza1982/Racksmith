@@ -4,6 +4,11 @@ This document explains how the RackSmith workspace is structured and why. The ru
 not written here: they live in [`architecture.toml`](../architecture.toml) and are enforced by
 `cargo xtask arch` on every pull request.
 
+This file describes the M0 code layout that exists today. The target architecture for M1 and later
+(crates, runtime components, storage, boot and deploy path, security) lives in
+[docs/design/system-design.md](design/system-design.md), with its decisions in ADRs 0011–0033; this
+file is updated as M1 pull requests land those changes.
+
 ## Layers
 
 ```mermaid

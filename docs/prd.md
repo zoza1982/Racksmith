@@ -201,9 +201,18 @@ table, the conformance test, the TLA+ model and the generated docs together, and
 
 ## 12. Open questions
 
+The [system design](design/system-design.md) proposes answers to Q1–Q5 in *Proposed* ADRs, listed
+under each question. They become answers only when the owner accepts those ADRs.
+
 1. Embedded store choice (redb, SQLite, or something else) and the Raft library for M2. This needs an ADR with a benchmark.
+   *Proposed:* an etcd-style `Store` trait whose semantics are fixed at F1 ([ADR 0029](adr/0029-fix-store-trait-semantics.md)), with redb behind it, accepted only after a week-3 benchmark against rusqlite, and openraft for M2 ([ADR 0012](adr/0012-redb-store-behind-etcd-style-trait.md)).
 2. Agent initramfs base: a custom minimal image (u-root style) or a minimal Linux distribution? This decides image size and boot time.
+   *Proposed:* a Rust PID 1 agent with a Debian signed kernel and curated modules, no subprocesses, at most 40 MiB ([ADR 0016](adr/0016-rust-pid1-agent-initramfs.md)).
 3. Image format standard: raw+zstd only, or also qcow2 and OCI-packaged disk images from the start?
+   *Proposed:* one on-wire format, rsimg v1 (chunked zstd with a signed per-chunk manifest); raw, qcow2 and OCI are import formats ([ADR 0015](adr/0015-rsimg-chunked-image-format.md)).
 4. Authentication for M1: static tokens only, or OIDC from the start?
+   *Proposed:* static hashed tokens in M1, OIDC in M2 ([ADR 0020](adr/0020-static-tokens-and-per-rpc-authorization.md)).
 5. The hosted control plane in D7 needs a multi-tenant model. Does it shape M2's authorization design?
+   *Proposed:* yes; a `tenant` attribute and an `authorize(principal, action, resource)` seam ship in M1, and the model itself stays an owner decision ([ADR 0020](adr/0020-static-tokens-and-per-rpc-authorization.md)).
 6. Hardware partners: which vendors or labs to approach for real-hardware validation before M3?
+   *Still open;* the system design also asks for a rented GPU-class machine before the M1 release ([§16.3](design/system-design.md#163-questions-only-the-owner-can-answer)).
