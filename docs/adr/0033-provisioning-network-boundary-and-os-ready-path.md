@@ -1,6 +1,6 @@
 # 0033. Keep deployed machines on the provisioning network in M1 and drop the isolation claim
 
-- Status: Proposed
+- Status: Accepted
 - Date: 2026-11-18
 
 ## Context

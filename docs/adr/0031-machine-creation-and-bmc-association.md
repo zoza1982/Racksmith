@@ -1,6 +1,6 @@
 # 0031. Create machines from BMCs, learn boot MACs on a token-bound boot, merge enrollments by identity
 
-- Status: Proposed
+- Status: Accepted
 - Date: 2026-11-18
 
 ## Context

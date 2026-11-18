@@ -1,6 +1,6 @@
 # 0025. Make restore a safety event and keep storage migrations reversible
 
-- Status: Proposed
+- Status: Accepted
 - Date: 2026-11-18
 
 ## Context

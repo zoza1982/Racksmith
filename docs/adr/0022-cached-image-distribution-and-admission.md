@@ -1,6 +1,6 @@
 # 0022. Distribute images through content-addressed caches with bandwidth admission at agent Hello
 
-- Status: Proposed
+- Status: Accepted
 - Date: 2026-11-18
 
 ## Context

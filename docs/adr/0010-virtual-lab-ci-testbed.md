@@ -1,6 +1,6 @@
 # 0010. Use a virtual lab as the CI test bed; label VM benchmarks honestly
 
-- Status: Accepted
+- Status: Accepted; per-PR scope amended by [ADR 0026](0026-racksmith-sim-and-tiered-lab.md)
 - Date: 2026-11-18
 
 ## Context

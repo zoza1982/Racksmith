@@ -1,6 +1,6 @@
 # 0029. Fix the Store trait semantics at F1, independently of the engine
 
-- Status: Proposed
+- Status: Accepted
 - Date: 2026-11-18
 
 ## Context

@@ -1,6 +1,6 @@
 # 0014. Drive each machine through one pure decide step with operation records, fencing and grants
 
-- Status: Proposed
+- Status: Accepted
 - Date: 2026-11-18
 
 ## Context

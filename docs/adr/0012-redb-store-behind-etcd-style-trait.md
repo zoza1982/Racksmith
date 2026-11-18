@@ -1,6 +1,6 @@
 # 0012. Use redb as the store engine, with openraft for M2
 
-- Status: Proposed
+- Status: Accepted
 - Date: 2026-11-18
 
 ## Context

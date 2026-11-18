@@ -1,6 +1,6 @@
 # 0018. Inject the installation's trust anchor into release-built iPXE at serve time
 
-- Status: Proposed
+- Status: Accepted
 - Date: 2026-11-18
 
 ## Context

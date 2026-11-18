@@ -1,6 +1,6 @@
 # 0028. Amend the supply-chain policy for Linux targets and a single crypto provider
 
-- Status: Proposed
+- Status: Accepted
 - Date: 2026-11-18
 
 ## Context

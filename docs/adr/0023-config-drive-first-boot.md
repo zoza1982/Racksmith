@@ -1,6 +1,6 @@
 # 0023. Deliver first-boot configuration on an end-of-disk config drive
 
-- Status: Proposed
+- Status: Accepted
 - Date: 2026-11-18
 
 ## Context

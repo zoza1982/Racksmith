@@ -139,13 +139,18 @@ Priorities: **P0** is the MVP, **P1** is the next milestone, **P2** comes later.
 
 | Metric | MVP target | Measured in |
 |---|---|---|
-| Time from power-on to OS-ready, p95, single machine | **under 5 minutes** (2 GB compressed image, 10 GbE equivalent) | Virtual lab (QEMU + emulated Redfish), every release |
+| Time from power-on to OS-ready, p95, single machine | **under 5 minutes** in the virtual lab (2 GB compressed image, 10 GbE equivalent): the M1 gate, measured with a 95% upper confidence bound | Virtual lab (QEMU + emulated Redfish), nightly and every release |
+| RackSmith-controlled deploy phases, p95 | at most 90 s on 10 GbE/NVMe (everything except firmware POST and the OS's own first boot) | Rented bare-metal hardware before each release |
+| Power-on to OS-ready on commodity and GPU servers, p95 | under 5 minutes from M3, with kexec and parked agents (two firmware POSTs make it unreachable before that) | Rented and partner hardware |
 | Concurrent deploys per control plane | 1,000 with p95 still under 5 minutes, bandwidth permitting | Load lab (simulated BMCs and agents) |
 | Machines managed per control plane | **10,000** | Simulated fleet: 10k emulated BMCs and agents |
 | API latency, p99, reads | under 50 ms at 10k machines | Load lab |
 | Control-plane memory at 10k machines | under 2 GB RSS | Load lab |
 | Install to first deployed machine | under 15 minutes for a new user | Documented quickstart, tested in CI |
 | Upgrade | Replace the binary and restart. Store migrations are automatic and reversible within one minor version | CI upgrade test |
+
+Every published timing is labelled with its environment (`virtual-lab`, `simulated` or
+`rented-hardware`) and its firmware POST profile ([ADR 0027](adr/0027-deploy-timing-schema-and-benchmark-method.md)).
 
 **Head-to-head benchmark:** a public harness deploys the same image to the same virtual lab with
 MAAS 3.x and RackSmith and reports per-phase timings. The results and the method go in
@@ -159,7 +164,7 @@ trust-pyramid gates.
 | Milestone | Scope | Exit criteria |
 |---|---|---|
 | **M0 Bootstrap** ✅ | Workspace, guardrails, CI, lifecycle model (TLA+/Kani), governance | Done 2026-11-18 |
-| **M1 Fast-deploy MVP** (~12 weeks) | R1–R3, R7–R9, R12–R14, R17–R20, R23, R27, R28, R32–R34, R38, R39. **Virtual lab in CI** (QEMU/libvirt VMs, an emulated Redfish BMC such as sushy-tools, virtual IPMI BMCs). Benchmark harness and simulated 10k-node load lab | A machine goes from power-on to OS-ready in under 5 minutes in the virtual lab, in CI; 5 OS recipes deploy; the 10k simulated fleet meets the §7 targets; MAAS comparison published |
+| **M1 Fast-deploy MVP** (~12 weeks) | R1–R3, R7–R9, R12–R14, R17–R20, R23, R27, R28, R32–R34, R38, R39, plus pull-forwards approved with the system design: an actor-attributed events table (part of R31), a rogue-DHCP metric and `owner`/`tenant` fields in the v1alpha1 API. No P0 item is cut from M1. **Virtual lab in CI** (QEMU/libvirt VMs, an emulated Redfish BMC such as sushy-tools, virtual IPMI BMCs). Benchmark harness and simulated 10k-node load lab | A machine goes from power-on to OS-ready in under 5 minutes in the virtual lab, in CI; 5 OS recipes deploy; the 10k simulated fleet meets the §7 targets; MAAS comparison published |
 | **M2 Declarative platform** | R4, R5, R10, R15, R29–R31, R35, R36 | Operator and binary pass the same conformance suite; a 3-node HA cluster survives losing its leader mid-deploy; the CAPI provider creates a Kubernetes cluster |
 | **M3 GPU fleet** | R21, R24–R26, R6 | Firmware drift is remediated across a pool; a node that fails DCGM is quarantined automatically; a tenant reprovision takes under 60 s on hardware that supports kexec |
 | **M4 Scale and edge** | R11, R16, R22, R37 | 1,000 concurrent deploys using peer-to-peer image distribution; DPU-isolated boot |
@@ -201,18 +206,18 @@ table, the conformance test, the TLA+ model and the generated docs together, and
 
 ## 12. Open questions
 
-The [system design](design/system-design.md) proposes answers to Q1–Q5 in *Proposed* ADRs, listed
-under each question. They become answers only when the owner accepts those ADRs.
+The [system design](design/system-design.md) answers Q1–Q5 in ADRs the owner accepted on
+2026-11-18, listed under each question (decision record: [§16.5](design/system-design.md#165-owner-decisions-2026-11-18)).
 
 1. Embedded store choice (redb, SQLite, or something else) and the Raft library for M2. This needs an ADR with a benchmark.
-   *Proposed:* an etcd-style `Store` trait whose semantics are fixed at F1 ([ADR 0029](adr/0029-fix-store-trait-semantics.md)), with redb behind it, accepted only after a week-3 benchmark against rusqlite, and openraft for M2 ([ADR 0012](adr/0012-redb-store-behind-etcd-style-trait.md)).
+   *Decided:* an etcd-style `Store` trait whose semantics are fixed at F1 ([ADR 0029](adr/0029-fix-store-trait-semantics.md)), with redb behind it, accepted only after a week-3 benchmark against rusqlite, and openraft for M2 ([ADR 0012](adr/0012-redb-store-behind-etcd-style-trait.md)).
 2. Agent initramfs base: a custom minimal image (u-root style) or a minimal Linux distribution? This decides image size and boot time.
-   *Proposed:* a Rust PID 1 agent with a Debian signed kernel and curated modules, no subprocesses, at most 40 MiB ([ADR 0016](adr/0016-rust-pid1-agent-initramfs.md)).
+   *Decided:* a Rust PID 1 agent with a Debian signed kernel and curated modules, no subprocesses, at most 40 MiB ([ADR 0016](adr/0016-rust-pid1-agent-initramfs.md)).
 3. Image format standard: raw+zstd only, or also qcow2 and OCI-packaged disk images from the start?
-   *Proposed:* one on-wire format, rsimg v1 (chunked zstd with a signed per-chunk manifest); raw, qcow2 and OCI are import formats ([ADR 0015](adr/0015-rsimg-chunked-image-format.md)).
+   *Decided:* one on-wire format, rsimg v1 (chunked zstd with a signed per-chunk manifest); raw, qcow2 and OCI are import formats ([ADR 0015](adr/0015-rsimg-chunked-image-format.md)).
 4. Authentication for M1: static tokens only, or OIDC from the start?
-   *Proposed:* static hashed tokens in M1, OIDC in M2 ([ADR 0020](adr/0020-static-tokens-and-per-rpc-authorization.md)).
+   *Decided:* static hashed tokens in M1, OIDC in M2 ([ADR 0020](adr/0020-static-tokens-and-per-rpc-authorization.md)).
 5. The hosted control plane in D7 needs a multi-tenant model. Does it shape M2's authorization design?
-   *Proposed:* yes; a `tenant` attribute and an `authorize(principal, action, resource)` seam ship in M1, and the model itself stays an owner decision ([ADR 0020](adr/0020-static-tokens-and-per-rpc-authorization.md)).
+   *Decided:* yes; a `tenant` attribute and an `authorize(principal, action, resource)` seam ship in M1, and the model itself stays an owner decision ([ADR 0020](adr/0020-static-tokens-and-per-rpc-authorization.md)).
 6. Hardware partners: which vendors or labs to approach for real-hardware validation before M3?
-   *Still open;* the system design also asks for a rented GPU-class machine before the M1 release ([§16.3](design/system-design.md#163-questions-only-the-owner-can-answer)).
+   *Partly decided:* a bare-metal GPU-class machine rented from a cloud provider calibrates timings before the M1 release; vendor and lab partners for M3 are still open.

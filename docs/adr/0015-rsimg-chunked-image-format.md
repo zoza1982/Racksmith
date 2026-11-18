@@ -1,6 +1,6 @@
 # 0015. Adopt rsimg v1: chunked zstd frames with a signed per-chunk manifest
 
-- Status: Proposed
+- Status: Accepted
 - Date: 2026-11-18
 
 ## Context

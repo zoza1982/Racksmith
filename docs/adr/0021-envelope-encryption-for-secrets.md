@@ -1,6 +1,6 @@
 # 0021. Encrypt secrets at rest with envelope AEAD under a pluggable KEK
 
-- Status: Proposed
+- Status: Accepted
 - Date: 2026-11-18
 
 ## Context

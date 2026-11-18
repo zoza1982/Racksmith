@@ -1,6 +1,6 @@
 # 0030. Mark Linux-only crates and check only portable crates on macOS and Windows
 
-- Status: Proposed
+- Status: Accepted
 - Date: 2026-11-18
 
 ## Context

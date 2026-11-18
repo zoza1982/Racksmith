@@ -2,12 +2,12 @@
 
 | | |
 |---|---|
-| **Status** | Draft — under review |
+| **Status** | Accepted 2026-11-18 (owner decisions in §16.5) |
 | **Date** | 2026-11-18 |
 | **Owner** | @zoza1982 |
 | **Scope** | The target architecture for M1 (fast-deploy MVP), with the seams M2–M4 need |
 | **Binding inputs** | [PRD](../prd.md) (R1–R39, §7 targets, §8 milestones, §9 decisions, §12 open questions), ADRs [0001](../adr/0001-record-architecture-decisions.md)–[0010](../adr/0010-virtual-lab-ci-testbed.md), [`architecture.toml`](../../architecture.toml), [AGENTS.md](../../AGENTS.md), [lifecycle](../lifecycle.md), [trust pyramid](../trust-pyramid.md) |
-| **Decisions** | Each new decision is recorded as a *Proposed* ADR, [0011](../adr/0011-evolve-workspace-into-ports-core-adapters.md)–[0033](../adr/0033-provisioning-network-boundary-and-os-ready-path.md) (see §15) |
+| **Decisions** | Each new decision is recorded as an ADR, accepted by the owner on 2026-11-18: [0011](../adr/0011-evolve-workspace-into-ports-core-adapters.md)–[0033](../adr/0033-provisioning-network-boundary-and-os-ready-path.md) (see §15) |
 | **Changes** | Pull requests only. This document describes targets; code, `architecture.toml` and the lifecycle implementation change in M1 PRs, each under its ADR |
 
 This document is the authoritative system design. [docs/architecture.md](../architecture.md)
@@ -2244,7 +2244,7 @@ in-flight deploys a source sustains at p95 ≈ slots × T_deploy / W     (arriva
   `status.agent.residency`.
 - **Why not in M1:** kexec needs either `unsafe` or a GPL-2.0 subprocess and a mount in the initramfs,
   and its value appears only on real hardware with long POSTs, which M1 cannot test. A lab-only
-  kexec spike is offered to the owner as an M1-stretch item to de-risk M3 [owner].
+  kexec spike is an M1-stretch item to de-risk M3 (owner decision, §16.5).
 
 ---
 
@@ -2921,14 +2921,14 @@ flowchart LR
   per profile on its own runner (each at most about 3.5 h). These runs show how the number moves
   with POST; with n = 20 they are published as indicative (empirical p95 and the sample maximum,
   which is only a 64% upper bound), never as the gate.
-- **Runner and trigger path for bot PRs.** The per-PR job targets GitHub-hosted Linux runners with
-  KVM enabled (standard runners for public repositories expose `/dev/kvm` after a udev rule; this
-  is verified in week 1 by the lab skeleton). That works for PRs from the agents' bot account and
-  from forks without exposing a self-hosted machine or any secret. Fallback if hosted KVM proves
-  too slow or flaky: an ephemeral self-hosted VM runner, started per job, with no secrets and no
-  persistent state, triggered for bot PRs by a maintainer-applied label [owner]. The nightly
-  benchmark runner, the load lab and the weekly profile runs use larger or self-hosted runners, on
-  a schedule against `main` only, never triggered by a PR. **Runner class is part of every
+- **Runner and trigger path for bot PRs (owner decision: self-hosted only).** All lab jobs run on
+  the maintainer's own KVM hardware. The per-PR job uses an ephemeral self-hosted VM runner,
+  created for one job and destroyed after it, with no secrets, no persistent state and no network
+  path beyond the lab. It starts automatically for maintainer PRs; for PRs from the agents' bot
+  account or from forks it starts only after a maintainer reads the diff and applies a label, and
+  the repository requires approval before outside contributors' workflows run. The nightly
+  benchmark host (local NVMe), the load lab and the weekly profile runs are scheduled against
+  `main` only, never triggered by a PR. **Runner class is part of every
   result:** the environment fingerprint records the runner type, CPU model, disk model and
   whether it is local NVMe or network-attached, the OVMF and kernel versions, and the QEMU cache
   mode; hosted runners (network-attached SSD, limited free disk) are never used for timed runs.
@@ -3158,17 +3158,16 @@ stub, so the boot workstream has a real target from its first PR.
 
 ### 14.4 Ordered cut list and never-cut list
 
-If M1 slips, cut from the top. Items marked [owner] touch PRD P0 scope and need the owner's
-agreement before they are cut.
+If M1 slips, cut from the top. The owner decided (2026-11-18) that no PRD P0 item slips out of
+M1, so the cut list holds only items outside P0 scope:
 
 1. REST NDJSON streaming (gRPC streaming stays).
 2. UEFI HTTP Boot answer (PXE path stays).
-3. Rogue-DHCP metric (the `doctor` probe stays).
-4. qcow2 import (raw and rsimg stay) [owner: R17 names qcow2, and M1 already reads it as an import format behind an optional host tool, §16.3].
-5. `restore-report` (observe-only and `resume` stay).
-6. Legacy BIOS boot (UEFI stays) [owner: R7 says legacy BIOS is supported].
-7. OCI import (HTTPS import of the same rsimg artifacts stays) [owner: R18 lists OCI as P0].
-8. IPMI driver (Redfish stays) [owner: R13 then slips to M2].
+
+**Never cut (owner decision):** qcow2 import (R17, through optional `qemu-img` until native
+conversion in M2), legacy BIOS boot (R7), OCI import (R18), the IPMI driver (R13), and the approved
+pull-forwards: the actor-attributed events table, the rogue-DHCP metric and the `owner`/`tenant`
+fields.
 
 **Never cut:** verify-before-write (signed manifest, per-frame hash); import provenance checks;
 operation records and observe before act; session-bound plans and template-only issuance; the
@@ -3198,7 +3197,7 @@ lab evidence and the generated artifacts, which is what the trust pyramid is for
 
 ## 15. Decisions needing ADRs
 
-All are written as *Proposed* ADRs dated 2026-11-18. Options are summarized; each ADR has the full
+All were written as *Proposed* ADRs and accepted by the owner on 2026-11-18 (§16.5). Options are summarized; each ADR has the full
 context.
 
 | ADR | Decision | Options | Recommendation |
@@ -3218,7 +3217,7 @@ context.
 | [0023](../adr/0023-config-drive-first-boot.md) | First-boot configuration and OS-ready | metadata service; per-OS injection (Ignition slot, Talos META); config-drive partition | end-of-disk config drive (NoCloud, config-2), phone-home token or TCP probe |
 | [0024](../adr/0024-separate-runtimes-in-one-process.md) | Process runtime layout | one runtime; one runtime + blocking pool; separate control, boot and data contexts + writer thread | separate contexts |
 | [0025](../adr/0025-restore-safety-and-reversible-migrations.md) | Restore safety and migrations | forward-only migrations, plain restore; reversible migrations, restore as a safety event | storage proto, `up`/`down` migrations, pre-migration snapshots; restore → supersede, generation bump, observe-only |
-| [0026](../adr/0026-racksmith-sim-and-tiered-lab.md) | Lab emulator and CI tiers | sushy-tools + VirtualBMC per VM on every PR; own emulator only; own emulator + nightly oracles | `racksmith-sim` (QEMU + fleet modes, POST profiles), 1-VM per-PR lab on hosted KVM runners, everything else nightly |
+| [0026](../adr/0026-racksmith-sim-and-tiered-lab.md) | Lab emulator and CI tiers | sushy-tools + VirtualBMC per VM on every PR; own emulator only; own emulator + nightly oracles | `racksmith-sim` (QEMU + fleet modes, POST profiles), 1-VM per-PR lab on ephemeral self-hosted KVM runners, everything else nightly |
 | [0027](../adr/0027-deploy-timing-schema-and-benchmark-method.md) | Timing schema and benchmark method | 7 coarse phases; fine phases with skew correction | the 14 phases of §9.1, three clocks with Cristian skew correction, controlled subtotal, POST profiles, labels, gating on the measured p95 with a confidence bound, Monte Carlo model for hardware columns, MAAS method |
 | [0028](../adr/0028-supply-chain-policy-amendments.md) | `deny.toml` amendments | keep as is; targeted amendments | `[graph] targets` for Linux gnu/musl × x86_64/aarch64; ring only (ban aws-lc); keep chrono banned in M1 (including `fatfs` without default features); no CDLA exception; time-boxed exceptions only by ADR |
 | [0029](../adr/0029-fix-store-trait-semantics.md) | Store trait semantics, split from the engine choice | freeze semantics with the engine after week 3; freeze semantics at F1 independently | freeze at F1: etcd-style transactions, `Op::Append` for same-transaction events, per-page consistent lists, watch and limits, the contract suite |
@@ -3243,8 +3242,8 @@ The operator's architecture (§7.6) is a refinement of ADR 0005 that gets its ow
 | [0009](../adr/0009-embedded-store-behind-trait.md) | openraft is the only credible Raft library, pre-1.0, and fails `deny.toml` on chrono today; "reversible migrations" is bounded by prost dropping unknown fields | single-replica Raft semantics now; upstream issue; time-boxed exception by ADR if needed; explicit `down` migrations |
 | [0005](../adr/0005-one-core-two-front-ends.md) | An operator that used etcd as its store would create two sources of truth and different watch semantics | CRDs as an authoring and projection surface over the embedded store (§7.6), ADR in M2 |
 | [0008](../adr/0008-pluggable-network-services.md) | Full DHCP doubles the boot test matrix and makes RackSmith own leases at sites that will never use it | kept; full mode is tested nightly; docs steer production to `proxy` or `external` |
-| [0010](../adr/0010-virtual-lab-ci-testbed.md) | KVM runners for a public repo, including PRs from the agents' bot account | hosted KVM runners for the per-PR job; ephemeral label-gated fallback; nightly load lab on `main` only |
-| [0010](../adr/0010-virtual-lab-ci-testbed.md), [0008](../adr/0008-pluggable-network-services.md) | ADR 0010 requires real proxyDHCP **and full-DHCP** boots, driven through emulated Redfish **and IPMI**, on every relevant PR, and ADR 0008 requires the lab to cover both DHCP modes. Proposed ADR 0026 runs only proxyDHCP and Redfish per PR and moves full DHCP and IPMI to nightly | this **narrows an accepted ADR**: ADR 0026 states that it amends ADR 0010's per-PR scope, and if the owner accepts it, ADR 0010's status is updated to point at it (ADR 0001). The alternative is a second per-PR VM for full DHCP + IPMI, about 8 more minutes per PR |
+| [0010](../adr/0010-virtual-lab-ci-testbed.md) | KVM runners for a public repo, including PRs from the agents' bot account | ephemeral self-hosted KVM runners (owner decision); label-gated for bot and fork PRs; nightly load lab on `main` only |
+| [0010](../adr/0010-virtual-lab-ci-testbed.md), [0008](../adr/0008-pluggable-network-services.md) | ADR 0010 requires real proxyDHCP **and full-DHCP** boots, driven through emulated Redfish **and IPMI**, on every relevant PR, and ADR 0008 requires the lab to cover both DHCP modes. ADR 0026 runs only proxyDHCP and Redfish per PR and moves full DHCP and IPMI to nightly | this **narrows an accepted ADR**: ADR 0026 amends ADR 0010's per-PR scope; the owner accepted it, and ADR 0010's status now points at it (ADR 0001). The alternative is a second per-PR VM for full DHCP + IPMI, about 8 more minutes per PR |
 
 ### 16.2 Risks
 
@@ -3253,7 +3252,7 @@ The operator's architecture (§7.6) is a refinement of ADR 0005 that gets its ow
 | GPU POST times make the 5-minute claim false on target hardware | credibility | controlled subtotal, POST profiles, kexec + parked agents in M3, rented-hardware calibration before the release |
 | Generated code cannot pass the strict lints without weakening them | the first proto PR fails `cargo xtask ci`; F1 slips | week-1 spike; item-level `expect` post-processing; `buf lint` comments rule; a narrowly scoped, ADR-backed `generated` rule as the last resort |
 | The iPXE trust-anchor injection does not work on some firmware | stage-2 authentication weaker than planned | week-1 spike; DHCP trust override; plain HTTP with documented risk |
-| Hosted KVM runners are too slow or flaky for a ≤ 15-minute PR lab | agent PRs get no e2e evidence before review | 1-VM, small-image PR job; ephemeral self-hosted fallback; nightly covers the rest |
+| Self-hosted runner capacity or isolation is insufficient for a ≤ 15-minute PR lab | agent PRs get no e2e evidence before review, or a public-repo runner is abused | 1-VM, small-image PR job; ephemeral VMs with no secrets; label gate for bot and fork PRs; nightly covers the rest |
 | On-link attacker during M1 (stage 1 unauthenticated, cloned tuple), which in M1 includes any deployed OS | user-data exposure before detection | session-bound plans and a generation bump on every token-consuming `Enroll`; one live session per machine; separate server and client CAs with template-only issuance; fail-closed conflict handling; settle window; DHCP snooping recommended; documented residual risk and no isolation claim (ADR 0033); Secure Boot and a separate tenant network in M2 |
 | Users treat M1 release as a secure wipe | data exposure between tenants | explicit docs, a CLI warning on release, the claim table in §11.9 |
 | Kexec unreliable on GPU and NIC hardware | R21's < 60 s target | per-profile opt-in, learned `HandoffCapability`, BMC fallback without a second write (M3) |
@@ -3337,6 +3336,36 @@ The operator's architecture (§7.6) is a refinement of ADR 0005 that gets its ow
 | Q4 M1 authentication | static hashed tokens; OIDC in M2 behind `Authenticator` | [0020](../adr/0020-static-tokens-and-per-rpc-authorization.md) |
 | Q5 multi-tenant model | it shapes M2: `tenant` on every v1alpha1 resource and `authorize(principal, action, resource)` now; the model itself stays an owner decision | [0020](../adr/0020-static-tokens-and-per-rpc-authorization.md) |
 | Q6 hardware partners | open (question 14) | — |
+
+### 16.5 Owner decisions (2026-11-18)
+
+The owner answered §16.3 and accepted ADRs 0011–0033 as recommended. Where an answer differs from
+the proposal, the design above has been updated.
+
+| # | Question | Decision |
+|---|---|---|
+| 1 | Lifecycle change (ADR 0013) | Approved: `tainted` guard, `broken → releasing`, `release_failed` |
+| 2 | §7 deploy target | Restated per hardware class (PRD §7): the M1 gate is the measured virtual-lab p95 < 5 min; RackSmith-controlled phases ≤ 90 s p95 measured on rented hardware; commodity and GPU servers < 5 min in M3 with kexec and parked agents |
+| 3 | REST gateway (ADR 0019 vs 0006) | A generated route table plus a runtime transcoder counts as generated from the contracts |
+| 4 | M1 pull-forwards | All approved: events table, rogue-DHCP metric, `owner`/`tenant` fields |
+| 5 | Cut list | **No P0 item slips**: legacy BIOS (R7), OCI import (R18), IPMI (R13) and qcow2 import (R17) stay in M1; §14.4 updated |
+| 6 | M1 `release` | A metadata wipe, documented as not sanitization; M1 is a single trust domain |
+| 7 | Provisioning network (ADR 0033) | Accepted for M1: deployed OSes stay on the boot interface, no isolation claim, residual risk documented; tenant separation in M2 |
+| 8 | Enrollment default | `require-approval` in production; `auto-accept` only with `racksmith init --lab` |
+| 9 | Image trust default | Catalog key plus project release key as default pool anchors; external signing opt-in |
+| 10 | CI infrastructure | **Self-hosted only**: ephemeral per-job KVM VM runners, label-gated for bot and fork PRs; dedicated benchmark host (§13.1, ADR 0026 updated) |
+| 11 | `deny.toml` (ADR 0028) | Approved; a time-boxed, ADR-recorded chrono exception for openraft in M2 is acceptable if upstream has not moved |
+| 12 | kexec | Lab-only kexec spike in M1-stretch |
+| 13 | Operator direction | CRDs as an authoring and projection surface over the embedded store; finalized by ADR in M2 |
+| 14 | Hardware partners (PRD Q6) | Rent a bare-metal GPU-class machine from a cloud provider for calibration before the M1 release; vendor and lab partners for M3 remain open |
+| 15 | Tracing (R38) | Agent spans synthesized by the control plane; no exporter in the agent |
+| 16 | R9 DNS | Zone files in M1; responder and RFC 2136 in M2 |
+| 17 | R17 reading | The agent streams rsimg only; qcow2 import ships in M1 through optional `qemu-img` (a subprocess, never linked), native conversion in M2 |
+| 18 | CI platform matrix (ADR 0030) | macOS and Windows jobs check the portable crates only |
+| 19 | ADR 0010 narrowing (ADR 0026) | One VM per PR (proxyDHCP + Redfish); full DHCP and IPMI nightly |
+| 20 | Benchmark runner | A dedicated self-hosted host with local NVMe |
+| 21 | Import provenance | Unverified raw/qcow2 imports refused by default; `--allow-unverified-provenance` signs under a key no pool trusts by default |
+| — | API authentication (ADR 0020) | Static hashed tokens with per-RPC authorization in M1; OIDC in M2 |
 
 ---
 

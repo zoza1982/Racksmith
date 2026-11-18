@@ -1,6 +1,6 @@
 # 0027. Define the deploy timing schema and the benchmark method
 
-- Status: Proposed
+- Status: Accepted
 - Date: 2026-11-18
 
 ## Context

@@ -1,6 +1,6 @@
 # 0024. Isolate control, boot services and image data in separate runtimes inside one process
 
-- Status: Proposed
+- Status: Accepted
 - Date: 2026-11-18
 
 ## Context

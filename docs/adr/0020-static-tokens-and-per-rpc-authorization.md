@@ -1,6 +1,6 @@
 # 0020. Authenticate API callers with static tokens and authorize every RPC by policy
 
-- Status: Proposed
+- Status: Accepted
 - Date: 2026-11-18
 
 ## Context

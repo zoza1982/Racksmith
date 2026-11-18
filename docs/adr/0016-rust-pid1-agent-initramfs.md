@@ -1,6 +1,6 @@
 # 0016. Boot a Rust PID 1 agent in a minimal initramfs with no subprocesses
 
-- Status: Proposed
+- Status: Accepted
 - Date: 2026-11-18
 
 ## Context

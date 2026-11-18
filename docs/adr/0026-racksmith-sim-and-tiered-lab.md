@@ -1,7 +1,6 @@
 # 0026. Build racksmith-sim and split the lab into per-PR and nightly tiers
 
-- Status: Proposed (amends the per-PR scope of [ADR 0010](0010-virtual-lab-ci-testbed.md); if accepted,
-  ADR 0010's status is updated to point here)
+- Status: Accepted (amends the per-PR scope of [ADR 0010](0010-virtual-lab-ci-testbed.md))
 - Date: 2026-11-18
 
 ## Context
@@ -47,11 +46,15 @@ runners**.
   retry, sushy-tools and VirtualBMC conformance); and the 10k load lab with every §7 gate.
 - **Weekly:** POST profiles 90, 180 and 240 s with 20 runs each, one job per profile, published as
   indicative, never as the gate.
-- **Runners:** the per-PR job runs on GitHub-hosted Linux runners with KVM enabled, which works for
-  bot and fork PRs without secrets; this is verified in week 1. The fallback is an ephemeral
-  self-hosted VM runner per job, without secrets or persistent state, started for bot PRs by a
-  maintainer label. The load lab runs on a larger or self-hosted runner, scheduled on `main` only. Any
-  lab job fails loudly when `/dev/kvm` is missing.
+- **Runners (owner decision, 2026-11-18: self-hosted only).** Every lab job runs on the
+  maintainer's own KVM hardware. Because the repository is public, the per-PR job uses an
+  **ephemeral** self-hosted VM runner created for one job and destroyed after it, with no secrets,
+  no persistent state and no network path to anything but the lab. It starts automatically only for
+  PRs from maintainers; for PRs from the agents' bot account or from forks it starts only when a
+  maintainer applies a label after reading the diff, and the repository requires approval before
+  workflows from outside contributors run. The nightly benchmark (dedicated host with local NVMe),
+  the load lab and the weekly profile runs are scheduled against `main` only, never triggered by a
+  PR. Any lab job fails loudly when `/dev/kvm` is missing.
 
 ## Consequences
 
@@ -59,5 +62,6 @@ runners**.
   path is found within a day instead of before merge.
 - We own an emulator and must keep it honest; the nightly oracles check our clients against
   independent implementations.
-- The hosted-KVM assumption must be verified in week 1; CI cost depends on the outcome, and the
-  timed benchmark needs a dedicated runner whose class is recorded with every result.
+- The maintainer operates the runner hosts (capacity, patching, isolation of the ephemeral VMs);
+  the timed benchmark needs a dedicated host whose class is recorded with every result. Agent PRs
+  wait for a label before they get end-to-end evidence.

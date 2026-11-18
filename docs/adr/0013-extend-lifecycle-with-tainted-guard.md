@@ -1,6 +1,6 @@
 # 0013. Extend the M1 lifecycle with a tainted guard and a release failure exit
 
-- Status: Proposed
+- Status: Accepted
 - Date: 2026-11-18
 
 ## Context

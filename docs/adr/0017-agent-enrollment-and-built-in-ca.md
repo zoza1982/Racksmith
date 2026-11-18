@@ -1,6 +1,6 @@
 # 0017. Enroll agents with HMAC boot tokens, BMC corroboration and short-lived certificates
 
-- Status: Proposed
+- Status: Accepted
 - Date: 2026-11-18
 
 ## Context
