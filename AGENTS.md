@@ -108,6 +108,28 @@ must update, in the same PR:
 4. The TLA+ properties and Kani proofs if an invariant changes.
 5. The prose and Mermaid diagram in `docs/lifecycle.md`.
 
+## Completeness
+
+Nothing designed may be missing silently ([ADR 0035](docs/adr/0035-completeness-layer.md)).
+`cargo xtask spec` and `cargo xtask arch` enforce it; tracking references are M1 plan task IDs
+(`M1-A-01`) from [docs/plan/m1.md](docs/plan/m1.md), never a task that is already struck through.
+
+- **New or renamed design section** in [system-design.md](docs/design/system-design.md): classify
+  it in [`requirements.toml`](requirements.toml) as `implemented` (entry points and the tests that
+  prove it), `partial` (what is missing and its tasks), `planned` (tasks) or `informative` (why it
+  states nothing buildable). Then run `cargo xtask spec --fix` to regenerate
+  [docs/requirements.md](docs/requirements.md).
+- **New input** (a field or variant of a `Deserialize` or clap type, a `{param}` of a router path,
+  or an environment variable read): either `implemented`, with an effect test proving that
+  changing it changes an observable outcome, or `rejected` at admission with a typed error naming
+  the field, a task and a test. Never accept and ignore an input: a `Deserialize` struct carries
+  `#[serde(deny_unknown_fields)]`.
+- **New subsystem**: declare it under `[subsystems]` in `architecture.toml` as `wired` (its
+  consumer calls the entry outside tests) or `planned` (tasks, and no code yet). Do not land a
+  subsystem that nothing calls.
+- Implementing a gap is one change: flip its status to `implemented` with tests, remove its
+  rejection, and strike its task through in the plan.
+
 ## Commits and pull requests
 
 - PR titles follow [Conventional Commits](https://www.conventionalcommits.org/):

@@ -82,3 +82,439 @@ reason = "the domain layer is synchronous and runtime-agnostic"
 crates = ["racksmith-domain"]
 pattern = "async fn"
 reason = "the domain layer is synchronous; async belongs in adapter crates"
+
+# Subsystems (rule 7 of `cargo xtask arch`, ADR 0035 in docs/adr/0035-completeness-layer.md).
+#
+# Every designed subsystem is either `wired`, its `entry` defined in the non-test sources of `crate`
+# and used by the non-test sources of `consumer`, or `planned`, tracked by open M1 plan tasks with
+# its `entry` appearing nowhere in the workspace (no half-wired code). Planned entries are the
+# names the implementing task must use; renaming one means updating its entry here in the same PR.
+# When a planned subsystem lands, flip it to `wired` with its crate and consumer.
+
+[subsystems.m0-http-api]
+status = "wired"
+entry = "AppState"
+crate = "racksmith-api"
+consumer = "racksmith-cli"
+reason = "M0 axum JSON API state holding the in-memory machine registry; `racksmith serve` builds it and hands it to racksmith_api::serve (K-04 rewrites it into MachineService)"
+
+[subsystems.log-subscriber]
+status = "wired"
+entry = "init_tracing"
+crate = "racksmith-cli"
+consumer = "racksmith-cli"
+reason = "tracing subscriber installed by the composition root in main(); plain text on stderr until L-03 switches to the §12.3 JSON lines"
+
+[subsystems.controller-runtime]
+status = "planned"
+entry = "Controller"
+tasks = ["M1-C-05"]
+reason = "Controller<R> hosting Reconciler implementations fed by a KeySource (§7.1)"
+
+[subsystems.work-queue]
+status = "planned"
+entry = "WorkQueue"
+tasks = ["M1-C-04"]
+reason = "per-key serialized, laned, weighted-fair work queue with delay heap and backoff (§7.2)"
+
+[subsystems.object-cache]
+status = "planned"
+entry = "ObjectCache"
+tasks = ["M1-C-05"]
+reason = "indexed in-memory cache fed by Store::watch that serves every API and reconciler read (§2.1, §7.1)"
+
+[subsystems.typed-store]
+status = "planned"
+entry = "TypedStore"
+tasks = ["M1-C-05"]
+reason = "reconciler write path that fills compares from read revisions and suppresses no-op writes (§7.1)"
+
+[subsystems.machine-reconciler]
+status = "planned"
+entry = "MachineReconciler"
+tasks = ["M1-C-06a", "M1-C-06b", "M1-C-06c"]
+reason = "one actor per machine, the executor around decide() and the only cause of machine side effects (§2.1, §7.3)"
+
+[subsystems.bmc-effect-executor]
+status = "planned"
+entry = "EffectExecutor"
+tasks = ["M1-C-07"]
+reason = "one task per BMC endpoint owning semaphores, spacing, inrush and timeouts (§7.3, §7.5); name proposed, the design names no type"
+
+[subsystems.power-poller]
+status = "planned"
+entry = "PowerPoller"
+tasks = ["M1-C-08"]
+reason = "observer that persists obs.power only on change at the §7.5 cadence (§2.1, §6.5)"
+
+[subsystems.agent-session-hub]
+status = "planned"
+entry = "AgentSessionHub"
+tasks = ["M1-C-09"]
+reason = "implements AgentSessions: ack after commit, (op, attempt, seq) dedup, session binding (§7.4, §10.4)"
+
+[subsystems.admission-controller]
+status = "planned"
+entry = "AdmissionController"
+tasks = ["M1-A-12", "M1-C-10"]
+reason = "global deploy slots, bandwidth tokens and the image circuit breaker (§7.5, §9.5)"
+
+[subsystems.bmc-reconciler]
+status = "planned"
+entry = "BmcReconciler"
+tasks = ["M1-C-11"]
+reason = "BMC session, TLS pin, identity read, BMC-first machine creation and merge (§2.1, §8.9)"
+
+[subsystems.ipam-reconciler]
+status = "planned"
+entry = "IpamReconciler"
+tasks = ["M1-C-12"]
+reason = "full-mode address allocation, DHCP reservations and zone records (§2.1, §8.7)"
+
+[subsystems.housekeeper]
+status = "planned"
+entry = "Housekeeper"
+tasks = ["M1-C-13"]
+reason = "retention, expired tokens and pending-enrollment garbage collection (§2.1)"
+
+[subsystems.cert-renewer]
+status = "planned"
+entry = "CertRenewer"
+tasks = ["M1-C-13", "M1-J-11"]
+reason = "server certificate renewal at half of its lifetime (§2.1, §11.4)"
+
+[subsystems.server-builder]
+status = "planned"
+entry = "ServerBuilder"
+tasks = ["M1-C-15"]
+reason = "racksmith-server wiring of store, cache, controllers and the four execution contexts (§2.3, §7.6)"
+
+[subsystems.deployment-progress-hub]
+status = "planned"
+entry = "DeploymentProgressHub"
+tasks = ["M1-K-06", "M1-C-09"]
+reason = "in-memory latest-value-wins progress hub behind WatchDeployment (§5.5); name proposed"
+
+[subsystems.store-port]
+status = "planned"
+entry = "Store"
+tasks = ["M1-B-01", "M1-B-02"]
+reason = "Store trait with etcd semantics: Txn, compares, revisions, watch (§3.3, §6.1)"
+
+[subsystems.redb-store]
+status = "planned"
+entry = "KeyIndex"
+tasks = ["M1-B-05"]
+reason = "racksmith-store-redb group-commit writer thread with its in-memory KeyIndex (§6.2, §6.3)"
+
+[subsystems.storage-migrations]
+status = "planned"
+entry = "MIGRATIONS"
+tasks = ["M1-B-03a", "M1-B-08"]
+reason = "typed up/down migration table run by the store engine at open (§6.7)"
+
+[subsystems.power-driver-port]
+status = "planned"
+entry = "PowerDriver"
+tasks = ["M1-C-01", "M1-C-03a"]
+reason = "power, boot override and identity port taking a PowerGrant for destructive calls (§3.3, §8.7)"
+
+[subsystems.dhcp-port]
+status = "planned"
+entry = "Dhcp"
+tasks = ["M1-C-01", "M1-D-04"]
+reason = "reservation and lease port, built in by racksmith-netboot (§3.3, §8.7)"
+
+[subsystems.ipam-port]
+status = "planned"
+entry = "Ipam"
+tasks = ["M1-C-01", "M1-A-14"]
+reason = "idempotent address allocation port with the built-in lowest-free allocator (§3.3, §8.7)"
+
+[subsystems.dns-port]
+status = "planned"
+entry = "Dns"
+tasks = ["M1-C-01", "M1-D-12"]
+reason = "record publishing port; the M1 built-in writes zone files (§3.3, §8.7)"
+
+[subsystems.boot-artifacts-port]
+status = "planned"
+entry = "BootArtifacts"
+tasks = ["M1-C-01", "M1-D-06"]
+reason = "content-addressed iPXE, kernel and initramfs per arch (§3.3, §8.7)"
+
+[subsystems.boot-decisions-port]
+status = "planned"
+entry = "BootDecisions"
+tasks = ["M1-A-05b", "M1-C-01", "M1-A-10"]
+reason = "bounded request channel from the boot runtime to the core returning the boot answer (§2.3, §8.5)"
+
+[subsystems.boot-tokens-port]
+status = "planned"
+entry = "BootTokens"
+tasks = ["M1-C-01", "M1-D-09", "M1-J-04"]
+reason = "boot and ready token mint and verify with versioned HMAC keys (§3.3, §8.5)"
+
+[subsystems.agent-sessions-port]
+status = "planned"
+entry = "AgentSessions"
+tasks = ["M1-C-01", "M1-C-09"]
+reason = "seam between the agent gateway and the core (§3.3)"
+
+[subsystems.image-catalog-port]
+status = "planned"
+entry = "ImageCatalog"
+tasks = ["M1-C-01", "M1-G-08"]
+reason = "catalog of imported rsimg images, implemented by racksmith-imagesvc (§3.3, §9.2)"
+
+[subsystems.blob-store-port]
+status = "planned"
+entry = "BlobStore"
+tasks = ["M1-C-01", "M1-F-07"]
+reason = "local-directory blob store for inventory and uploads (§3.3, §6.5)"
+
+[subsystems.log-sink-port]
+status = "planned"
+entry = "LogSink"
+tasks = ["M1-C-01", "M1-L-03"]
+reason = "local-directory agent log segments (§3.3, §12.3)"
+
+[subsystems.kek-provider-port]
+status = "planned"
+entry = "KekProvider"
+tasks = ["M1-C-01", "M1-J-02"]
+reason = "key file or systemd-creds KEK for envelope encryption (§3.3, §11.5)"
+
+[subsystems.authenticator-port]
+status = "planned"
+entry = "Authenticator"
+tasks = ["M1-C-01", "M1-J-07"]
+reason = "static hashed bearer tokens in M1 (§3.3, §11.7)"
+
+[subsystems.leader-gate-port]
+status = "planned"
+entry = "LeaderGate"
+tasks = ["M1-C-01", "M1-C-16"]
+reason = "AlwaysLeader plus the observe-only switch after restore; supplies the fencing term (§4.3, §6.6, §7.1)"
+
+[subsystems.clock-port]
+status = "planned"
+entry = "Clock"
+tasks = ["M1-C-01", "M1-C-02"]
+reason = "injected time source: system clock in production, manual clock in tests (§3.3)"
+
+[subsystems.entropy-port]
+status = "planned"
+entry = "Entropy"
+tasks = ["M1-C-01", "M1-C-02"]
+reason = "injected randomness for MachineId and OperationId, seeded in tests (§3.3, §4.1)"
+
+[subsystems.redfish-driver]
+status = "planned"
+entry = "RedfishDriver"
+tasks = ["M1-E-01", "M1-E-02", "M1-E-03"]
+reason = "racksmith-redfish PowerDriver implementation (§8.7); name proposed"
+
+[subsystems.ipmi-driver]
+status = "planned"
+entry = "IpmiDriver"
+tasks = ["M1-E-04a", "M1-E-04b"]
+reason = "racksmith-ipmi PowerDriver implementation over RMCP+ (§8.7); name proposed"
+
+[subsystems.boot-services]
+status = "planned"
+entry = "NetbootServer"
+tasks = ["M1-D-03", "M1-D-06"]
+reason = "racksmith-netboot proxyDHCP/DHCP, TFTP and boot HTTP(S) listeners on the boot runtime (§8.2, §8.8); name proposed"
+
+[subsystems.rogue-dhcp-watch]
+status = "planned"
+entry = "RogueDhcpWatch"
+tasks = ["M1-D-11"]
+reason = "metric-only observer of foreign PXE offers (§2.1, §8.8)"
+
+[subsystems.image-importer]
+status = "planned"
+entry = "ImageImporter"
+tasks = ["M1-G-05", "M1-G-08"]
+reason = "raw/qcow2/OCI to rsimg import with the provenance refusal and catalog re-signing (§2.1, §9.2)"
+
+[subsystems.image-origin]
+status = "planned"
+entry = "ImageOrigin"
+tasks = ["M1-G-09"]
+reason = "data-runtime HTTP origin with Range, immutable headers and 429 for unadmitted ranges (§9.5); name proposed"
+
+[subsystems.manifest-verifier]
+status = "planned"
+entry = "ManifestVerifier"
+tasks = ["M1-G-02"]
+reason = "ECDSA P-256 cosign sign-blob manifest verification (§9.2, §11.6); name proposed"
+
+[subsystems.certificate-issuer]
+status = "planned"
+entry = "CertificateIssuer"
+tasks = ["M1-J-01"]
+reason = "racksmith-pki template-only issuance from separate server and client hierarchies (§11.4); name proposed"
+
+[subsystems.authorization]
+status = "planned"
+entry = "authorize"
+tasks = ["M1-A-13", "M1-J-08"]
+reason = "pure domain decision authorize(principal, action, resource) behind the shared authz layer (§11.7)"
+
+[subsystems.audit-events]
+status = "planned"
+entry = "AuditEvent"
+tasks = ["M1-C-06a", "M1-J-09"]
+reason = "ev/ audit rows written in the transition transaction and the racksmith::audit target (§11.8); name proposed"
+
+[subsystems.machine-service]
+status = "planned"
+entry = "MachineService"
+tasks = ["M1-K-04"]
+reason = "gRPC MachineService on :7443 replacing the M0 axum routes, with dry_run and confirm_destructive (§5.2, §4.9)"
+
+[subsystems.bmc-service]
+status = "planned"
+entry = "BmcService"
+tasks = ["M1-K-07"]
+reason = "BmcService handlers; credentials accepted as input only (§5.2, §5.3)"
+
+[subsystems.pool-service]
+status = "planned"
+entry = "PoolService"
+tasks = ["M1-K-07"]
+reason = "PoolService CRUD and Watch (§5.2)"
+
+[subsystems.network-service]
+status = "planned"
+entry = "NetworkService"
+tasks = ["M1-K-07"]
+reason = "NetworkService CRUD and Watch for Subnet and BootNetwork (§5.2)"
+
+[subsystems.image-service]
+status = "planned"
+entry = "ImageService"
+tasks = ["M1-K-08"]
+reason = "ImageService Import/Get/List/Watch/Delete (§5.2)"
+
+[subsystems.firstboot-config-service]
+status = "planned"
+entry = "FirstBootConfigService"
+tasks = ["M1-K-08"]
+reason = "FirstBootConfigService CRUD; the payload is never returned (§5.2, §10.6)"
+
+[subsystems.enrollment-service]
+status = "planned"
+entry = "EnrollmentService"
+tasks = ["M1-K-09"]
+reason = "EnrollmentService list, approve and reject (§5.2)"
+
+[subsystems.token-service]
+status = "planned"
+entry = "TokenService"
+tasks = ["M1-J-07", "M1-K-09"]
+reason = "TokenService create, list, revoke and WhoAmI (§5.2)"
+
+[subsystems.admin-service]
+status = "planned"
+entry = "AdminService"
+tasks = ["M1-K-09"]
+reason = "AdminService health, version, snapshot, resume, restore and migration (§5.2)"
+
+[subsystems.rest-transcoder]
+status = "planned"
+entry = "RestTranscoder"
+tasks = ["M1-K-10"]
+reason = "generated REST route table and JSON-to-gRPC transcoder sharing the authz layer (§5.7); name proposed"
+
+[subsystems.agent-gateway]
+status = "planned"
+entry = "AgentService"
+tasks = ["M1-F-01a", "M1-J-05", "M1-K-09"]
+reason = "mTLS AgentService on :9443 hosting Enroll and Session, never sharing TLS config or authz with the user API (§2.2, §10.3)"
+
+[subsystems.agent-enrollment-client]
+status = "planned"
+entry = "EnrollmentClient"
+tasks = ["M1-F-05"]
+reason = "agent side of enrollment: in-RAM key, CSR and pinned CA verifier (§10.3); name proposed"
+
+[subsystems.agent-session-client]
+status = "planned"
+entry = "SessionClient"
+tasks = ["M1-F-06"]
+reason = "agent side of the Session stream with seq replay and the retry contract (§10.4); name proposed"
+
+[subsystems.agent-write-pipeline]
+status = "planned"
+entry = "WritePipeline"
+tasks = ["M1-F-08a", "M1-F-08b", "M1-F-09"]
+reason = "agent fetch, verify, decode and crash-safe write pipeline (§9.3); name proposed"
+
+[subsystems.os-ready-endpoint]
+status = "planned"
+entry = "ReadyEndpoint"
+tasks = ["M1-D-16"]
+reason = "POST /ready/<token> committing the OS-ready observation before 200 (§10.6); name proposed"
+
+[subsystems.os-ready-prober]
+status = "planned"
+entry = "OsReadyProber"
+tasks = ["M1-C-18"]
+reason = "TCP_PROBE OS-ready prober with ADR 0033 address selection (§10.6); name proposed"
+
+[subsystems.metrics-registry]
+status = "planned"
+entry = "MetricsRegistry"
+tasks = ["M1-L-01"]
+reason = "Prometheus registry on :9464 with /healthz and /readyz (§12.1, §12.5); name proposed"
+
+[subsystems.otlp-tracing]
+status = "planned"
+entry = "OtlpExporter"
+tasks = ["M1-L-02"]
+reason = "per-reconcile spans, one trace per deploy and optional OTLP export (§12.2); name proposed"
+
+[subsystems.secret-redaction-layer]
+status = "planned"
+entry = "RedactionLayer"
+tasks = ["M1-L-03", "M1-J-03"]
+reason = "secret-field filter tracing layer and canary (§11.5, §12.3); name proposed"
+
+[subsystems.phase-timings]
+status = "planned"
+entry = "PhaseTimings"
+tasks = ["M1-L-04", "M1-F-06"]
+reason = "deploy timing capture with three clocks and skew correction (§9.1, §12.4)"
+
+[subsystems.doctor]
+status = "planned"
+entry = "Doctor"
+tasks = ["M1-L-05"]
+reason = "`racksmith doctor` preflight checks, also run by init (§2.4, §12.5); name proposed"
+
+[subsystems.server-config]
+status = "planned"
+entry = "Config"
+tasks = ["M1-K-13"]
+reason = "typed TOML configuration rejecting unknown keys, read only in racksmith-cli (§12.6)"
+
+[subsystems.boot-artifact-pins]
+status = "planned"
+entry = "BOOT_ARTIFACT_DIGESTS"
+tasks = ["M1-K-14", "M1-R-04"]
+reason = "pinned boot-artifact digests and sizes checked by init and boot-artifacts import (§12.6); name proposed"
+
+[subsystems.sim-bmc]
+status = "planned"
+entry = "SimBmc"
+tasks = ["M1-E-05a", "M1-E-05b", "M1-E-06"]
+reason = "racksmith-sim per-VM Redfish/IPMI BMC emulator driving QEMU (§13.1); name proposed"
+
+[subsystems.sim-fleet]
+status = "planned"
+entry = "SimFleet"
+tasks = ["M1-E-07", "M1-E-08"]
+reason = "racksmith-sim 10k virtual Redfish endpoints and sim agents (§13.2); name proposed"

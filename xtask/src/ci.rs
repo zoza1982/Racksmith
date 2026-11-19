@@ -13,7 +13,7 @@ use std::path::Path;
 
 use anyhow::{Context as _, Result, bail};
 
-use crate::{arch, docs, process, term};
+use crate::{arch, docs, process, spec, term};
 
 /// One step of the gate.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -40,6 +40,8 @@ enum Action {
     Arch,
     /// `cargo xtask docs`, run in-process.
     Docs,
+    /// `cargo xtask spec`, run in-process.
+    Spec,
     /// A step whose tool is not installed.
     Skip { warning: &'static str },
 }
@@ -104,6 +106,7 @@ fn execute(root: &Path, action: Action, strict: bool) -> Result<()> {
         }
         Action::Arch => arch::run(root),
         Action::Docs => docs::run(root, false),
+        Action::Spec => spec::run(root, false),
         Action::Skip { warning } if strict => {
             bail!("{warning}; `CI` is set, so nothing may be skipped")
         }
@@ -194,7 +197,8 @@ fn lint_steps() -> Vec<Step> {
     ]
 }
 
-/// Documentation, supply-chain policy, architecture rules and generated sections.
+/// Documentation, supply-chain policy, architecture rules, generated sections and requirements
+/// traceability.
 fn policy_steps(tools: Tools) -> Vec<Step> {
     vec![
         Step {
@@ -235,6 +239,10 @@ fn policy_steps(tools: Tools) -> Vec<Step> {
         Step {
             title: "generated docs",
             action: Action::Docs,
+        },
+        Step {
+            title: "requirements traceability",
+            action: Action::Spec,
         },
     ]
 }
@@ -348,6 +356,7 @@ mod tests {
                 "cargo-deny (fuzz)",
                 "architecture",
                 "generated docs",
+                "requirements traceability",
                 "typos",
                 "unused dependencies",
                 "workflow lint (actionlint)",

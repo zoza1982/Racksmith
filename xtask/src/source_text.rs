@@ -13,6 +13,9 @@ pub(crate) struct Line {
     pub(crate) code: String,
     /// Comment text on this line, without the comment delimiters.
     pub(crate) comment: String,
+    /// The raw contents (escapes kept as written) of the string literals that start on this
+    /// line, in order; each one is the `""` placeholder of the code view.
+    pub(crate) literals: Vec<String>,
 }
 
 /// Splits Rust source text into per-line code and comment views.
@@ -118,13 +121,24 @@ impl Lexer {
     fn string(&mut self, hashes: usize) {
         self.pos += 1;
         self.current.code.push('"');
+        let starts_on = self.lines.len();
+        let mut contents = String::new();
         while let Some(c) = self.bump() {
             if c == '\\' && hashes == 0 {
-                self.bump();
+                contents.push(c);
+                if let Some(escaped) = self.bump() {
+                    contents.push(escaped);
+                }
             } else if c == '"' && self.closes_raw_string(hashes) {
                 self.pos += hashes;
                 break;
+            } else {
+                contents.push(c);
             }
+        }
+        match self.lines.get_mut(starts_on) {
+            Some(line) => line.literals.push(contents),
+            None => self.current.literals.push(contents),
         }
         self.current.code.push('"');
     }
@@ -227,6 +241,14 @@ mod tests {
             code("f(\"std::fs // no\");\ng(\"a\\\"\nb\");"),
             ["f(\"\");", "g(\"", "\");"]
         );
+    }
+
+    #[test]
+    fn keeps_string_contents_on_the_line_where_they_start() {
+        let lines = split("f(\"/a/{id}\", r#\"b\"#);\ng(\"multi\nline\"); // \"no\"");
+        assert_eq!(lines[0].literals, ["/a/{id}", "b"]);
+        assert_eq!(lines[1].literals, ["multi\nline"]);
+        assert!(lines[2].literals.is_empty(), "comments hold no literals");
     }
 
     #[test]

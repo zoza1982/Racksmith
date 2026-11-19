@@ -11,6 +11,8 @@ Usage: cargo xtask <COMMAND>
 Commands:
   arch            Enforce architecture.toml: layering, dependency policy, manifest and source rules
   docs [--fix]    Check (or with --fix, regenerate) generated sections of the docs
+  spec [--fix]    Check requirements.toml against the design, plan, code and tests, and
+                  (with --fix) regenerate docs/requirements.md
   ci              Run the local quality gate: every ci-success check that runs on one machine
   install-hooks   Point git at the versioned hooks in .githooks/
   help            Print this message
@@ -24,6 +26,11 @@ pub(crate) enum Command {
     /// `docs`: verify generated documentation, rewriting it when `fix` is set.
     Docs {
         /// Rewrite stale generated sections instead of failing.
+        fix: bool,
+    },
+    /// `spec`: check requirements traceability, rewriting the coverage page when `fix` is set.
+    Spec {
+        /// Rewrite a stale `docs/requirements.md` instead of failing.
         fix: bool,
     },
     /// `ci`: run every quality gate in order.
@@ -50,6 +57,9 @@ pub(crate) fn parse(args: impl IntoIterator<Item = String>) -> Result<Command> {
         "docs" => Command::Docs {
             fix: flags.iter().any(|flag| flag == "--fix"),
         },
+        "spec" => Command::Spec {
+            fix: flags.iter().any(|flag| flag == "--fix"),
+        },
         "ci" => Command::Ci,
         "install-hooks" => Command::InstallHooks,
         "help" | "--help" | "-h" => Command::Help,
@@ -62,7 +72,7 @@ pub(crate) fn parse(args: impl IntoIterator<Item = String>) -> Result<Command> {
 /// The flags each command understands.
 fn accepted_flags(command: Command) -> &'static [&'static str] {
     match command {
-        Command::Docs { .. } => &["--fix"],
+        Command::Docs { .. } | Command::Spec { .. } => &["--fix"],
         Command::Arch | Command::Ci | Command::InstallHooks | Command::Help => &[],
     }
 }
@@ -94,6 +104,11 @@ mod tests {
         assert_eq!(
             parse_strs(&["docs", "--fix"]).unwrap(),
             Command::Docs { fix: true }
+        );
+        assert_eq!(parse_strs(&["spec"]).unwrap(), Command::Spec { fix: false });
+        assert_eq!(
+            parse_strs(&["spec", "--fix"]).unwrap(),
+            Command::Spec { fix: true }
         );
         assert_eq!(parse_strs(&["ci"]).unwrap(), Command::Ci);
         assert_eq!(

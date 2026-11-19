@@ -1,0 +1,1108 @@
+# Requirements traceability for RackSmith, checked by `cargo xtask spec` (and in CI).
+#
+# This file is the completeness matrix of ADR 0035 (docs/adr/0035-completeness-layer.md); the rules
+# for agents are in the "Completeness" section of AGENTS.md. Nothing designed may be missing
+# silently: every gap is built, explicitly rejected, or tracked by an open M1 plan task.
+#
+# [sections."<N.M>"] classifies every leaf section of docs/design/system-design.md. `title` must
+# equal the heading text after the number. `status` is one of:
+#   implemented  entry_points (code paths) and tests (that prove it)
+#   partial      tasks and missing (what is not built yet), optionally entry_points and tests
+#   planned      tasks
+#   informative  reason (why the section states no buildable requirement)
+#
+# [inputs."<package>::<Type>.<member>"] classifies every field and variant of every type that
+# derives serde Deserialize or clap Parser/Args/Subcommand/ValueEnum in product non-test code
+# (a tuple variant's payload is `<Type>.<Variant>.0`), plus the inputs no derive declares:
+# `<package>::route.<pattern>.<param>` for every `{param}` of a router path pattern and
+# `<package>::env.<NAME>` for every environment variable read at run time:
+#   implemented  effect_tests (changing the input changes an observable outcome)
+#   rejected     tasks and tests (admission rejects it with a typed error naming the field)
+#
+# Tasks are M1 plan task IDs from docs/plan/m1.md, always written `M1-<ID>`; a struck-through
+# (done) or unknown task is an error. Tests are `<package>::<libtest path>` as printed by
+# `cargo test -p <package> -- --list`. docs/requirements.md is generated from this file:
+# run `cargo xtask spec --fix` after editing it.
+
+
+[sections."1.1"]
+title = "The design in one paragraph"
+status = "informative"
+reason = "Summary only: each mechanism it names is specified, and tracked, in §4, §6, §7 and §9; it adds no buildable requirement of its own"
+
+[sections."1.2"]
+title = "Design principles"
+status = "informative"
+reason = "Rationale table: the principles P-1..P-7 are realized by the mechanisms of §4, §6, §7, §9, §12 and §14, which carry the buildable requirements"
+
+[sections."1.3"]
+title = "Traceability to PRD requirements"
+status = "informative"
+reason = "Cross-reference matrix from PRD requirement IDs to design sections and milestones; it states no requirement of its own"
+
+[sections."1.4"]
+title = "Traceability to PRD §7 targets"
+status = "planned"
+tasks = [
+  "M1-H-17",
+  "M1-H-19a",
+  "M1-H-19b",
+  "M1-H-19c",
+  "M1-H-19d",
+  "M1-R-01",
+  "M1-R-02",
+]
+
+[sections."1.5"]
+title = "What M1 explicitly is not"
+status = "planned"
+tasks = ["M1-R-03"]
+
+[sections."2.1"]
+title = "Runtime components"
+status = "planned"
+tasks = [
+  "M1-B-05",
+  "M1-C-05",
+  "M1-C-06a",
+  "M1-C-07",
+  "M1-C-08",
+  "M1-C-09",
+  "M1-C-11",
+  "M1-C-12",
+  "M1-C-13",
+  "M1-D-03",
+  "M1-D-11",
+  "M1-E-01",
+  "M1-E-04b",
+  "M1-F-04",
+  "M1-G-08",
+  "M1-G-09",
+  "M1-J-05",
+  "M1-K-04",
+  "M1-K-13",
+]
+
+[sections."2.2"]
+title = "Ports and listeners"
+status = "planned"
+tasks = [
+  "M1-D-03",
+  "M1-D-06",
+  "M1-D-16",
+  "M1-G-09",
+  "M1-J-05",
+  "M1-K-09",
+  "M1-K-10",
+  "M1-L-01",
+]
+
+[sections."2.3"]
+title = "Process layout: four isolated execution contexts"
+status = "planned"
+tasks = ["M1-C-15", "M1-D-06", "M1-G-09"]
+
+[sections."2.4"]
+title = "Deployment and network topology"
+status = "planned"
+tasks = ["M1-L-05", "M1-D-05"]
+
+[sections."3.1"]
+title = "Layered crate map"
+status = "partial"
+tasks = ["M1-P-01a", "M1-P-01b", "M1-P-02"]
+missing = "The L0-L7 crate map of ADR 0011 with the new crates (ports, proto, rsimg, storage-model, netboot-core, testkit, core, store-redb, redfish, ipmi, netboot, imagesvc, pki, server, agent, sim), racksmith-api re-layered to L4 and racksmith-cli to L6, the per-crate allowlists of the table, and the `platforms = [\"linux\"]` field with the CI matrix derived from it (ADR 0030); today only the strictly-downward layer rule and the three M0 crates exist"
+
+[sections."3.2"]
+title = "New `architecture.toml` rules (beyond layering)"
+status = "planned"
+tasks = [
+  "M1-P-01b",
+  "M1-P-03",
+  "M1-P-05",
+  "M1-P-08",
+  "M1-A-15",
+]
+
+[sections."3.3"]
+title = "Ports versus adapters"
+status = "planned"
+tasks = [
+  "M1-A-05b",
+  "M1-B-01",
+  "M1-B-02",
+  "M1-C-01",
+  "M1-C-03a",
+  "M1-C-03b",
+  "M1-C-03c",
+  "M1-C-03d",
+]
+
+[sections."3.4"]
+title = "How this lets agent fleets build in parallel"
+status = "informative"
+reason = "Describes the work process and why the architecture enables parallel work; the enforceable mechanisms it relies on are the requirements of §3.1-§3.3, §5.7 and §14.2"
+
+[sections."4.1"]
+title = "The machine aggregate"
+status = "partial"
+tasks = ["M1-A-01", "M1-A-03", "M1-A-11"]
+missing = "The spec/status aggregate (Meta with pool/site/tenant, MachineSpec, Assignment, Identity, DiskInventory, enrollment_generation, tainted, owner, root_disk, operation, conditions), Observations kept out of the aggregate, random non-zero MachineId from the Entropy port, and Machine::restore(StoredMachine) re-validating the §4.6 invariants; only the M0 Machine { id, mac, hostname, state } exists"
+entry_points = ["racksmith_domain::Machine", "racksmith_domain::MachineId"]
+tests = [
+  "racksmith-domain::machine::tests::handle_moves_through_the_happy_path",
+  "racksmith-domain::machine::tests::starts_new_without_hostname",
+]
+
+[sections."4.2"]
+title = "The M1 lifecycle change"
+status = "partial"
+tasks = ["M1-A-02", "M1-A-09", "M1-C-06c"]
+missing = "The tainted flag (set by deploy, cleared by release_completed), the !tainted guards on mark_fixed and start_commissioning from broken, broken -> releasing on release, releasing -> broken on release_failed, the never-tainted release shortcut, the generated GUARDS table in docs/lifecycle.md and MachineLifecycle.tla, and start_commissioning clearing owner/root_disk; the M0 table (8 states, 11 events) is implemented and the deployed -> broken -> ready safety gap is still live"
+entry_points = [
+  "racksmith_domain::MachineState",
+  "racksmith_domain::MachineEvent",
+  "racksmith_domain::TRANSITIONS",
+]
+tests = [
+  "racksmith-domain::lifecycle::tests::transitions_table_agrees_with_apply",
+  "racksmith-domain::tests::apply_matches_spec_table",
+]
+
+[sections."4.3"]
+title = "Operations, fencing and grants"
+status = "planned"
+tasks = [
+  "M1-A-03",
+  "M1-A-04",
+  "M1-A-11",
+  "M1-F-13",
+]
+
+[sections."4.4"]
+title = "`decide()`: orchestration as one pure step function"
+status = "planned"
+tasks = ["M1-A-05", "M1-A-07", "M1-A-08"]
+
+[sections."4.5"]
+title = "Actor permission matrix"
+status = "planned"
+tasks = ["M1-A-06", "M1-K-04"]
+
+[sections."4.6"]
+title = "Invariants"
+status = "partial"
+tasks = [
+  "M1-A-02",
+  "M1-A-03",
+  "M1-A-04",
+  "M1-A-06",
+  "M1-A-08",
+  "M1-A-09",
+  "M1-A-16a",
+  "M1-A-16b",
+  "M1-C-14a",
+]
+missing = "I6-I15 (DiskWriteGrant, ready implies untainted and ownerless, one open operation with a deadline, monotonic enrollment_generation, agents cause no event, no second write after ImageWritten, decide totality, NoDeposedLeaderWrite, liveness, restore observe-only) with their Kani, proptest, TLA+ and det-sim checks; I1-I5 are implemented and checked"
+tests = [
+  "racksmith-domain::tests::random_event_sequences_preserve_invariants",
+  "racksmith-domain::tests::ready_is_reachable_from_every_state",
+]
+
+# The states themselves are M2/M3. The section's one M1 obligation is `status.agent.residency`
+# reserved as NONE, which K-01 builds in the machine/v1alpha1 `AgentStatus` (§5.3).
+[sections."4.7"]
+title = "Later states, designed now"
+status = "planned"
+tasks = ["M1-K-01"]
+
+[sections."4.8"]
+title = "What changes in TLA+, Kani, proptest and fuzzing"
+status = "planned"
+tasks = [
+  "M1-A-02",
+  "M1-A-04",
+  "M1-A-06",
+  "M1-A-16a",
+  "M1-A-16b",
+  "M1-A-17",
+]
+
+[sections."4.9"]
+title = "Declarative mapping and destructive confirmation"
+status = "planned"
+tasks = [
+  "M1-A-19",
+  "M1-A-07",
+  "M1-K-04",
+  "M1-K-12",
+]
+
+[sections."5.1"]
+title = "Protobuf package layout"
+status = "planned"
+tasks = [
+  "M1-K-01",
+  "M1-K-02a",
+  "M1-K-02b",
+  "M1-B-03a",
+]
+
+[sections."5.2"]
+title = "Services (v1alpha1)"
+status = "planned"
+tasks = [
+  "M1-K-04",
+  "M1-K-07",
+  "M1-K-08",
+  "M1-K-09",
+]
+
+[sections."5.3"]
+title = "Resource shape"
+status = "planned"
+tasks = ["M1-K-01", "M1-K-03", "M1-P-06"]
+
+[sections."5.4"]
+title = "List, watch, consistency and limits"
+status = "planned"
+tasks = ["M1-K-05", "M1-C-05", "M1-J-08"]
+
+[sections."5.5"]
+title = "Streaming deploy progress (R20)"
+status = "planned"
+tasks = ["M1-K-06", "M1-C-09"]
+
+[sections."5.6"]
+title = "`racksmith apply -f` (R34)"
+status = "planned"
+tasks = ["M1-K-12"]
+
+[sections."5.7"]
+title = "Codegen, REST gateway, versioning and the CLI"
+status = "planned"
+tasks = [
+  "M1-P-04",
+  "M1-P-05",
+  "M1-P-07",
+  "M1-P-09",
+  "M1-K-10",
+  "M1-K-11a",
+  "M1-K-11b",
+  "M1-K-11c",
+]
+
+[sections."6.1"]
+title = "Store trait semantics (the contract M2 must keep)"
+status = "planned"
+tasks = [
+  "M1-B-01",
+  "M1-B-02",
+  "M1-B-06",
+  "M1-B-09",
+]
+
+[sections."6.2"]
+title = "Engine: redb, with rusqlite as the documented fallback"
+status = "planned"
+tasks = [
+  "M1-B-11",
+  "M1-B-04",
+  "M1-B-05",
+  "M1-B-10",
+  "M1-H-26",
+]
+
+[sections."6.3"]
+title = "Group-commit writer"
+status = "planned"
+tasks = ["M1-B-05"]
+
+[sections."6.4"]
+title = "Data model and sizing"
+status = "planned"
+tasks = ["M1-B-03a", "M1-B-03b", "M1-J-09"]
+
+[sections."6.5"]
+title = "What is not in the state store"
+status = "planned"
+tasks = [
+  "M1-C-08",
+  "M1-C-09",
+  "M1-F-07",
+  "M1-L-03",
+]
+
+[sections."6.6"]
+title = "Backup, restore and restore safety"
+status = "planned"
+tasks = [
+  "M1-B-07",
+  "M1-C-16",
+  "M1-A-09",
+  "M1-H-15",
+]
+
+[sections."6.7"]
+title = "Migrations"
+status = "planned"
+tasks = ["M1-B-03a", "M1-B-08", "M1-R-02"]
+
+[sections."6.8"]
+title = "M2 Raft mapping (R5)"
+status = "informative"
+reason = "Describes M2 behaviour (openraft replication, follower reads, rolling upgrade) that is explicitly not built in M1 and that no M1 task cites; the M1 obligations it constrains (Txn.expected_term, writer-completed Append keys, LeaderGate) are tracked under §6.1, §6.3 and §7.1"
+
+[sections."7.1"]
+title = "Runtime contract (front-end-agnostic)"
+status = "planned"
+tasks = ["M1-C-05", "M1-C-01"]
+
+[sections."7.2"]
+title = "Work queue (own code, about 400 lines, property-tested)"
+status = "planned"
+tasks = ["M1-C-04"]
+
+[sections."7.3"]
+title = "The `MachineReconciler`: one actor, one decision"
+status = "planned"
+tasks = [
+  "M1-C-06a",
+  "M1-C-06b",
+  "M1-C-06c",
+  "M1-C-07",
+  "M1-C-17",
+  "M1-A-08",
+]
+
+[sections."7.4"]
+title = "Agent-report handling"
+status = "planned"
+tasks = ["M1-C-09", "M1-F-06"]
+
+[sections."7.5"]
+title = "Concurrency limits and back-pressure"
+status = "planned"
+tasks = [
+  "M1-C-07",
+  "M1-C-08",
+  "M1-C-10",
+  "M1-J-08",
+  "M1-J-06",
+]
+
+[sections."7.6"]
+title = "How both front ends host it (ADR 0005)"
+status = "partial"
+tasks = ["M1-C-15", "M1-K-13"]
+missing = "racksmith-server::ServerBuilder (store, object cache fed by Store::watch, one Controller per reconciler, store-watch mappers, delay heap, observers, AlwaysLeader gate with the observe-only switch) and the specified 30 s drain (DEFAULT_DRAIN_TIMEOUT is 10 s); only the SIGINT/SIGTERM drain of `racksmith serve` exists"
+entry_points = ["racksmith_api::serve", "racksmith_api::DEFAULT_DRAIN_TIMEOUT"]
+tests = [
+  "racksmith-cli::tests::serve::serve_drains_and_exits_cleanly_on_sigint_and_sigterm",
+  "racksmith-cli::tests::serve::second_signal_stops_serve_without_waiting_for_stalled_clients",
+]
+
+[sections."8.1"]
+title = "DHCP modes (per `BootNetwork`, that is per provisioning interface)"
+status = "planned"
+tasks = ["M1-D-01a", "M1-D-03", "M1-D-04"]
+
+[sections."8.2"]
+title = "Boot chain (M1, Secure Boot off)"
+status = "planned"
+tasks = [
+  "M1-D-01b",
+  "M1-D-06",
+  "M1-D-13",
+  "M1-D-15a",
+  "M1-D-15b",
+  "M1-G-09",
+]
+
+[sections."8.3"]
+title = "M1 trust anchor: serve-time injection into a release-built iPXE"
+status = "planned"
+tasks = ["M1-D-07a", "M1-D-07b", "M1-D-08"]
+
+[sections."8.4"]
+title = "Boot sequence of a known machine (proxyDHCP)"
+status = "planned"
+tasks = [
+  "M1-D-06",
+  "M1-D-09",
+  "M1-J-05",
+  "M1-H-11a",
+]
+
+[sections."8.5"]
+title = "Boot decisions and the boot token"
+status = "planned"
+tasks = [
+  "M1-A-05b",
+  "M1-A-10",
+  "M1-D-06",
+  "M1-D-09",
+  "M1-J-04",
+]
+
+[sections."8.6"]
+title = "Unknown machines (R8)"
+status = "planned"
+tasks = ["M1-D-10", "M1-J-06"]
+
+[sections."8.7"]
+title = "Port traits and power drivers"
+status = "planned"
+tasks = [
+  "M1-C-01",
+  "M1-E-01",
+  "M1-E-02",
+  "M1-E-03",
+  "M1-E-04a",
+  "M1-E-04b",
+  "M1-A-14",
+  "M1-C-12",
+  "M1-D-12",
+]
+
+[sections."8.8"]
+title = "Boot-service hardening"
+status = "planned"
+tasks = ["M1-D-02", "M1-D-03", "M1-D-11"]
+
+[sections."8.9"]
+title = "Machine creation, BMC binding and boot-MAC learning"
+status = "planned"
+tasks = [
+  "M1-C-11",
+  "M1-A-07",
+  "M1-A-10",
+  "M1-D-09",
+  "M1-J-06",
+  "M1-E-03",
+]
+
+[sections."8.10"]
+title = "Routed and relayed provisioning networks"
+status = "planned"
+tasks = ["M1-D-05", "M1-H-13"]
+
+[sections."9.1"]
+title = "Timing schema and phase budget (PRD §7: power-on → OS-ready p95 < 5 min)"
+status = "planned"
+tasks = [
+  "M1-L-04",
+  "M1-H-16",
+  "M1-H-17",
+  "M1-H-18",
+  "M1-H-23",
+  "M1-E-05b",
+  "M1-H-07",
+]
+
+[sections."9.2"]
+title = "Image format: rsimg v1"
+status = "planned"
+tasks = [
+  "M1-G-03",
+  "M1-G-01",
+  "M1-G-02",
+  "M1-G-04",
+  "M1-G-05",
+  "M1-G-06",
+  "M1-G-07",
+]
+
+[sections."9.3"]
+title = "Streaming, verification and crash-safe writing (agent side)"
+status = "planned"
+tasks = [
+  "M1-F-08a",
+  "M1-F-08b",
+  "M1-F-09",
+  "M1-H-15",
+]
+
+[sections."9.4"]
+title = "End-to-end deploy sequence"
+status = "planned"
+tasks = [
+  "M1-A-08",
+  "M1-C-06b",
+  "M1-D-16",
+  "M1-F-12",
+  "M1-H-11b",
+]
+
+[sections."9.5"]
+title = "Distribution and admission for 1,000 concurrent deploys"
+status = "planned"
+tasks = [
+  "M1-A-12",
+  "M1-C-10",
+  "M1-G-09",
+  "M1-G-10",
+  "M1-H-19c",
+  "M1-H-20",
+]
+
+[sections."9.6"]
+title = "Recipes (R18: Ubuntu, Debian, Rocky/Alma, Flatcar, Talos)"
+status = "planned"
+tasks = [
+  "M1-G-16",
+  "M1-G-11",
+  "M1-G-12",
+  "M1-G-13",
+  "M1-G-14",
+  "M1-G-15",
+  "M1-R-04",
+]
+
+[sections."9.7"]
+title = "Hand-off and the kexec plan"
+status = "planned"
+tasks = [
+  "M1-F-12",
+  "M1-C-06b",
+  "M1-A-08",
+  "M1-F-01a",
+]
+
+[sections."10.1"]
+title = "Initramfs build (answers PRD §12 Q2)"
+status = "planned"
+tasks = [
+  "M1-F-02",
+  "M1-F-03",
+  "M1-P-08",
+  "M1-F-16",
+]
+
+[sections."10.2"]
+title = "PID 1 duties"
+status = "planned"
+tasks = ["M1-F-04"]
+
+[sections."10.3"]
+title = "Enrollment and identity (R8, R27)"
+status = "planned"
+tasks = [
+  "M1-F-01a",
+  "M1-F-05",
+  "M1-J-01",
+  "M1-J-05",
+  "M1-J-06",
+]
+
+[sections."10.4"]
+title = "Control channel (`AgentService.Session`, bidirectional gRPC over mTLS)"
+status = "planned"
+tasks = [
+  "M1-F-01a",
+  "M1-F-01b",
+  "M1-F-06",
+  "M1-C-09",
+  "M1-F-13",
+  "M1-F-11",
+  "M1-C-06c",
+]
+
+[sections."10.5"]
+title = "Inventory and commissioning (R23)"
+status = "planned"
+tasks = ["M1-F-07"]
+
+[sections."10.6"]
+title = "First-boot configuration and the OS-ready signal (R19)"
+status = "planned"
+tasks = [
+  "M1-F-10",
+  "M1-K-08",
+  "M1-K-11b",
+  "M1-D-16",
+  "M1-C-18",
+  "M1-J-04",
+]
+
+[sections."10.7"]
+title = "Failure handling"
+status = "planned"
+tasks = [
+  "M1-F-12",
+  "M1-F-06",
+  "M1-F-08b",
+  "M1-F-09",
+  "M1-C-17",
+]
+
+[sections."11.1"]
+title = "Threat model (the M1 column is what ships)"
+status = "informative"
+reason = "Threat table: each M1 mitigation cross-references the section that specifies and tracks it (§4.3, §6.6, §8.5, §8.6, §8.8, §9.2, §9.6, §10.3, §10.4, §11.4-§11.8), so it adds no buildable requirement of its own"
+
+[sections."11.2"]
+title = "Trust boundaries"
+status = "informative"
+reason = "Diagram of trust zones and boundaries B1-B6; each boundary's mechanism is specified and tracked in §2.2, §8.3, §10.3, §10.6 and §11.4-§11.7"
+
+[sections."11.3"]
+title = "Boot chain by milestone"
+status = "planned"
+tasks = [
+  "M1-D-08",
+  "M1-D-07b",
+  "M1-D-06",
+  "M1-H-13",
+]
+
+[sections."11.4"]
+title = "PKI and mTLS"
+status = "planned"
+tasks = [
+  "M1-J-01",
+  "M1-J-11",
+  "M1-F-05",
+  "M1-K-14",
+  "M1-K-11a",
+  "M1-J-07",
+]
+
+[sections."11.5"]
+title = "Credentials at rest (R14) and redaction"
+status = "planned"
+tasks = [
+  "M1-J-02",
+  "M1-J-03",
+  "M1-A-15",
+  "M1-L-03",
+]
+
+[sections."11.6"]
+title = "Image signing and provenance"
+status = "planned"
+tasks = [
+  "M1-G-02",
+  "M1-G-08",
+  "M1-G-16",
+  "M1-L-08",
+  "M1-R-04",
+]
+
+[sections."11.7"]
+title = "Authentication and authorization (R28)"
+status = "planned"
+tasks = [
+  "M1-J-07",
+  "M1-J-08",
+  "M1-A-13",
+  "M1-P-06",
+  "M1-K-03",
+]
+
+[sections."11.8"]
+title = "Audit in M1 (a minimal pull-forward of R31)"
+status = "planned"
+tasks = ["M1-C-06a", "M1-J-09"]
+
+[sections."11.9"]
+title = "Isolation statement and install prerequisites"
+status = "planned"
+tasks = ["M1-R-03", "M1-L-05"]
+
+[sections."12.1"]
+title = "Metrics (Prometheus, `prometheus-client`, `:9464/metrics`)"
+status = "planned"
+tasks = ["M1-L-01", "M1-D-11"]
+
+[sections."12.2"]
+title = "Tracing"
+status = "planned"
+tasks = ["M1-L-02"]
+
+[sections."12.3"]
+title = "Logs"
+status = "partial"
+tasks = ["M1-L-03", "M1-J-03"]
+missing = "JSON-lines logs on stdout (today plain text on stderr), request_id/trace_id and op on every line, agent log segments under logs/, `racksmith machine logs`, and the secret-field filter layer"
+entry_points = ["racksmith_cli::init_tracing"]
+
+[sections."12.4"]
+title = "Deploy timing capture (the benchmark is a product feature)"
+status = "planned"
+tasks = ["M1-L-04", "M1-F-06", "M1-L-07"]
+
+[sections."12.5"]
+title = "Health, readiness and `racksmith doctor`"
+status = "partial"
+tasks = [
+  "M1-L-01",
+  "M1-L-05",
+  "M1-B-07",
+  "M1-B-08",
+  "M1-B-10",
+  "M1-J-02",
+  "M1-C-16",
+  "M1-K-11c",
+]
+missing = "/readyz (store, migrations, listeners, observe-only), /debug/queues behind the admin token, the `racksmith doctor` preflight, and the `racksmith admin` snapshot, restore, resume, migrate, kek rotate, boot-key rotate, dump and compact commands; only GET /healthz on the API listener exists"
+entry_points = ["racksmith_api::routes::health"]
+tests = ["racksmith-api::tests::healthz_reports_ok"]
+
+[sections."12.6"]
+title = "Configuration, packaging and upgrades"
+status = "partial"
+tasks = [
+  "M1-K-13",
+  "M1-K-14",
+  "M1-D-08",
+  "M1-L-08",
+  "M1-L-09",
+  "M1-R-01",
+  "M1-R-02",
+  "M1-R-04",
+]
+missing = "The typed TOML Config with unknown-key rejection and RACKSMITH_CONFIG, the 30 s SIGTERM exit (10 s today), `racksmith init` with --offline/--lab, the pinned boot-artifact digest table and `admin boot-artifacts import`, static-binary, systemd and OCI packaging, the quickstart, migrations on start with a pre-migration snapshot, and agent protocol N-1 negotiation; only the signal-driven drain of `racksmith serve` exists"
+entry_points = ["racksmith_api::serve"]
+tests = [
+  "racksmith-cli::tests::serve::serve_drains_and_exits_cleanly_on_sigint_and_sigterm",
+  "racksmith-cli::tests::serve::second_signal_stops_serve_without_waiting_for_stalled_clients",
+  "racksmith-api::tests::serves_requests_and_stops_gracefully",
+]
+
+[sections."12.7"]
+title = "Memory budget at 10k (RSS < 2 GB)"
+status = "planned"
+tasks = ["M1-L-09", "M1-H-19b"]
+
+[sections."12.8"]
+title = "Alerts shipped as Prometheus rules (`docs/ops/alerts.yaml`)"
+status = "planned"
+tasks = ["M1-L-06"]
+
+[sections."13.1"]
+title = "Virtual lab (ADR 0010): `racksmith-sim --qemu` and `cargo xtask lab`"
+status = "planned"
+tasks = [
+  "M1-H-10",
+  "M1-E-05a",
+  "M1-E-05b",
+  "M1-E-06",
+  "M1-E-09",
+  "M1-H-11a",
+  "M1-H-11b",
+  "M1-H-11c",
+  "M1-H-12",
+  "M1-H-13",
+  "M1-H-14",
+  "M1-H-15",
+  "M1-H-17",
+  "M1-H-18",
+  "M1-H-25",
+]
+
+[sections."13.2"]
+title = "Load lab: `racksmith-sim --fleet 10000`"
+status = "planned"
+tasks = [
+  "M1-E-07",
+  "M1-E-08",
+  "M1-H-19a",
+  "M1-H-19b",
+  "M1-H-19c",
+  "M1-H-19d",
+  "M1-H-19e",
+  "M1-H-20",
+]
+
+[sections."13.3"]
+title = "Contract tests per port (`racksmith-testkit`)"
+status = "planned"
+tasks = [
+  "M1-B-02",
+  "M1-C-03a",
+  "M1-C-03b",
+  "M1-C-03c",
+  "M1-C-03d",
+]
+
+[sections."13.4"]
+title = "Deterministic simulation of the core"
+status = "planned"
+tasks = ["M1-C-02", "M1-C-14a", "M1-C-14b"]
+
+[sections."13.5"]
+title = "Fuzz targets (`fuzz/`, cargo-fuzz, nightly corpus growth)"
+status = "partial"
+tasks = [
+  "M1-A-17",
+  "M1-D-01a",
+  "M1-D-02",
+  "M1-D-06",
+  "M1-G-02",
+  "M1-G-04",
+  "M1-F-13",
+  "M1-J-01",
+  "M1-E-04a",
+  "M1-E-01",
+  "M1-K-10",
+  "M1-F-07",
+  "M1-B-03b",
+]
+missing = "The actor, guard and tainted extension of lifecycle_sequence, and the targets dhcp_packet, tftp_request, boot_script_query, rsimg_manifest, rsimg_frames, plan_validate, agent_message, control_message, enroll_request, ipmi_rmcp, redfish_json, rest_transcode, inventory_sysfs, storage_decode and decide_sequence; fuzz/ holds only lifecycle_sequence plus the M0 parse_hostname, parse_mac and parse_machine_id targets"
+
+[sections."13.6"]
+title = "Formal models"
+status = "partial"
+tasks = [
+  "M1-A-02",
+  "M1-A-04",
+  "M1-A-05",
+  "M1-A-16a",
+  "M1-A-16b",
+  "M1-G-01",
+]
+missing = "tainted, owner and the generated Guards in MachineLifecycle.tla, DeployProtocol.tla, the §4.8 Kani proofs (grants, Phase, I7 via handle) and the racksmith-rsimg extent-arithmetic proofs; the M0 MachineLifecycle.tla and the lifecycle Kani proofs exist and run in verify.yml"
+
+[sections."13.7"]
+title = "Benchmark harness and the MAAS comparison"
+status = "planned"
+tasks = [
+  "M1-H-16",
+  "M1-G-18",
+  "M1-H-21",
+  "M1-H-22a",
+  "M1-H-22b",
+  "M1-H-23",
+]
+
+[sections."14.1"]
+title = "In M1, stretch and deferred"
+status = "informative"
+reason = "Scope table: each row summarizes requirements specified and tracked in their own sections (§4-§13); the stretch tasks that cite it build features from those sections"
+
+[sections."14.2"]
+title = "Interface freeze points"
+status = "planned"
+tasks = [
+  "M1-A-05b",
+  "M1-B-03a",
+  "M1-F-01b",
+  "M1-K-15",
+]
+
+[sections."14.3"]
+title = "Parallel workstreams"
+status = "informative"
+reason = "Schedule, staffing and review model (Gantt chart, stream table, critical path): project planning executed by docs/plan/m1.md, not product behaviour"
+
+[sections."14.4"]
+title = "Ordered cut list and never-cut list"
+status = "informative"
+reason = "Prioritization record of what may slip; the never-cut items are specified and built under their own sections and tasks"
+
+[sections."14.5"]
+title = "Keeping the maintainer off the critical path"
+status = "informative"
+reason = "Governance: when ADRs are accepted and which code gets line-by-line review; no buildable requirement"
+
+[sections."15"]
+title = "Decisions needing ADRs"
+status = "informative"
+reason = "Decision log indexing ADRs 0011-0033 (all accepted 2026-11-18); the requirements they imply are classified under the sections that specify them"
+
+[sections."16.1"]
+title = "Concerns about accepted ADRs (kept as constraints, flagged)"
+status = "informative"
+reason = "Concern register about earlier ADRs; each mitigation points to the section that specifies it"
+
+[sections."16.2"]
+title = "Risks"
+status = "informative"
+reason = "Risk register with impacts and mitigations; not a buildable requirement"
+
+[sections."16.3"]
+title = "Questions only the owner can answer"
+status = "informative"
+reason = "Open questions for the owner, all answered in §16.5"
+
+[sections."16.4"]
+title = "Answers this design proposes to PRD §12"
+status = "informative"
+reason = "Decision log mapping PRD §12 questions to ADRs; the requirements are built under §6, §9, §10 and §11"
+
+[sections."16.5"]
+title = "Owner decisions (2026-11-18)"
+status = "informative"
+reason = "Decision log of the owner's answers; each decision is folded into the section that specifies the behaviour"
+
+[inputs."racksmith-api::CreateMachineRequest.hostname"]
+status = "implemented"
+effect_tests = ["racksmith-api::tests::hostname_changes_the_created_machine"]
+
+[inputs."racksmith-api::CreateMachineRequest.mac"]
+status = "implemented"
+effect_tests = [
+  "racksmith-api::tests::mac_changes_the_created_machine",
+  "racksmith-api::tests::mac_decides_whether_a_second_registration_conflicts",
+]
+
+[inputs."racksmith-api::EventRequest.event"]
+status = "implemented"
+effect_tests = ["racksmith-api::tests::event_changes_the_resulting_state"]
+
+[inputs."racksmith-api::route./machines/{id}.id"]
+status = "implemented"
+effect_tests = ["racksmith-api::tests::path_id_selects_the_machine_that_is_read"]
+
+[inputs."racksmith-api::route./machines/{id}/events.id"]
+status = "implemented"
+effect_tests = ["racksmith-api::tests::path_id_selects_the_machine_the_event_applies_to"]
+
+[inputs."racksmith-cli::Cli.command"]
+status = "implemented"
+effect_tests = ["racksmith-cli::tests::command_selects_the_subcommand_that_runs"]
+
+[inputs."racksmith-cli::Command.Lifecycle"]
+status = "implemented"
+effect_tests = ["racksmith-cli::tests::command_selects_the_subcommand_that_runs"]
+
+[inputs."racksmith-cli::Command.Lifecycle.format"]
+status = "implemented"
+effect_tests = ["racksmith-cli::tests::lifecycle_format_selects_the_output_syntax"]
+
+[inputs."racksmith-cli::Command.Serve"]
+status = "implemented"
+effect_tests = [
+  "racksmith-cli::tests::listen_changes_the_bound_address",
+  "racksmith-cli::tests::serve::serve_drains_and_exits_cleanly_on_sigint_and_sigterm",
+]
+
+[inputs."racksmith-cli::Command.Serve.listen"]
+status = "implemented"
+effect_tests = ["racksmith-cli::tests::listen_changes_the_bound_address"]
+
+[inputs."racksmith-cli::Command.Validate"]
+status = "implemented"
+effect_tests = ["racksmith-cli::tests::command_selects_the_subcommand_that_runs"]
+
+[inputs."racksmith-cli::Command.Validate.target"]
+status = "implemented"
+effect_tests = ["racksmith-cli::tests::validate_target_selects_the_parser"]
+
+[inputs."racksmith-cli::LifecycleFormat.Markdown"]
+status = "implemented"
+effect_tests = ["racksmith-cli::tests::lifecycle_format_selects_the_output_syntax"]
+
+[inputs."racksmith-cli::LifecycleFormat.Tla"]
+status = "implemented"
+effect_tests = ["racksmith-cli::tests::lifecycle_format_selects_the_output_syntax"]
+
+[inputs."racksmith-cli::ValidateTarget.Hostname"]
+status = "implemented"
+effect_tests = ["racksmith-cli::tests::validate_target_selects_the_parser"]
+
+[inputs."racksmith-cli::ValidateTarget.Hostname.value"]
+status = "implemented"
+effect_tests = ["racksmith-cli::tests::validate_hostname_value_changes_the_output"]
+
+[inputs."racksmith-cli::ValidateTarget.Mac"]
+status = "implemented"
+effect_tests = ["racksmith-cli::tests::validate_target_selects_the_parser"]
+
+[inputs."racksmith-cli::ValidateTarget.Mac.value"]
+status = "implemented"
+effect_tests = ["racksmith-cli::tests::validate_mac_value_changes_the_output"]
+
+[inputs."racksmith-cli::env.RUST_LOG"]
+status = "implemented"
+effect_tests = ["racksmith-cli::tests::rust_log_filters_the_log_lines"]
+
+[inputs."racksmith-domain::MachineEvent.Allocate"]
+status = "implemented"
+effect_tests = [
+  "racksmith-api::tests::event_changes_the_resulting_state",
+  "racksmith-domain::tests::event_wire_name_changes_the_resulting_state",
+  "racksmith-domain::tests::every_event_variant_is_distinguishable",
+]
+
+[inputs."racksmith-domain::MachineEvent.CommissioningFailed"]
+status = "implemented"
+effect_tests = [
+  "racksmith-api::tests::event_changes_the_resulting_state",
+  "racksmith-domain::tests::event_wire_name_changes_the_resulting_state",
+  "racksmith-domain::tests::every_event_variant_is_distinguishable",
+]
+
+[inputs."racksmith-domain::MachineEvent.CommissioningSucceeded"]
+status = "implemented"
+effect_tests = [
+  "racksmith-api::tests::event_changes_the_resulting_state",
+  "racksmith-domain::tests::event_wire_name_changes_the_resulting_state",
+  "racksmith-domain::tests::every_event_variant_is_distinguishable",
+]
+
+[inputs."racksmith-domain::MachineEvent.Deploy"]
+status = "implemented"
+effect_tests = [
+  "racksmith-api::tests::event_changes_the_resulting_state",
+  "racksmith-domain::tests::event_wire_name_changes_the_resulting_state",
+  "racksmith-domain::tests::every_event_variant_is_distinguishable",
+]
+
+[inputs."racksmith-domain::MachineEvent.DeploymentFailed"]
+status = "implemented"
+effect_tests = [
+  "racksmith-api::tests::event_changes_the_resulting_state",
+  "racksmith-domain::tests::event_wire_name_changes_the_resulting_state",
+  "racksmith-domain::tests::every_event_variant_is_distinguishable",
+]
+
+[inputs."racksmith-domain::MachineEvent.DeploymentSucceeded"]
+status = "implemented"
+effect_tests = [
+  "racksmith-api::tests::event_changes_the_resulting_state",
+  "racksmith-domain::tests::event_wire_name_changes_the_resulting_state",
+  "racksmith-domain::tests::every_event_variant_is_distinguishable",
+]
+
+[inputs."racksmith-domain::MachineEvent.MarkBroken"]
+status = "implemented"
+effect_tests = [
+  "racksmith-api::tests::event_changes_the_resulting_state",
+  "racksmith-domain::tests::event_wire_name_changes_the_resulting_state",
+  "racksmith-domain::tests::every_event_variant_is_distinguishable",
+]
+
+[inputs."racksmith-domain::MachineEvent.MarkFixed"]
+status = "implemented"
+effect_tests = [
+  "racksmith-api::tests::event_changes_the_resulting_state",
+  "racksmith-domain::tests::event_wire_name_changes_the_resulting_state",
+  "racksmith-domain::tests::every_event_variant_is_distinguishable",
+]
+
+[inputs."racksmith-domain::MachineEvent.Release"]
+status = "implemented"
+effect_tests = [
+  "racksmith-api::tests::event_changes_the_resulting_state",
+  "racksmith-domain::tests::event_wire_name_changes_the_resulting_state",
+  "racksmith-domain::tests::every_event_variant_is_distinguishable",
+]
+
+[inputs."racksmith-domain::MachineEvent.ReleaseCompleted"]
+status = "implemented"
+effect_tests = [
+  "racksmith-api::tests::event_changes_the_resulting_state",
+  "racksmith-domain::tests::event_wire_name_changes_the_resulting_state",
+  "racksmith-domain::tests::every_event_variant_is_distinguishable",
+]
+
+[inputs."racksmith-domain::MachineEvent.StartCommissioning"]
+status = "implemented"
+effect_tests = [
+  "racksmith-api::tests::event_changes_the_resulting_state",
+  "racksmith-domain::tests::event_wire_name_changes_the_resulting_state",
+  "racksmith-domain::tests::every_event_variant_is_distinguishable",
+]
+

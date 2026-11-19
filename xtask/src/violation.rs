@@ -6,6 +6,8 @@
 use std::fmt;
 use std::path::PathBuf;
 
+use crate::plan_tasks::TaskProblem;
+
 /// The kind of a dependency edge, mirroring the manifest sections.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub(crate) enum DepKind {
@@ -128,6 +130,60 @@ pub(crate) enum Violation {
         path: PathBuf,
         line: usize,
         marker: String,
+    },
+    /// A subsystem lacks a field its status requires, or sets one it forbids.
+    SubsystemField {
+        subsystem: String,
+        field: &'static str,
+        status: &'static str,
+        required: bool,
+    },
+    /// A subsystem's `entry` is not a single identifier.
+    SubsystemEntryNotIdentifier { subsystem: String, entry: String },
+    /// A wired subsystem names a package that is not a workspace member.
+    SubsystemUnknownCrate {
+        subsystem: String,
+        field: &'static str,
+        krate: String,
+    },
+    /// A wired subsystem's entry is not defined in its crate's non-test sources.
+    SubsystemEntryNotDefined {
+        subsystem: String,
+        entry: String,
+        krate: String,
+    },
+    /// A wired subsystem's entry is not used by its consumer's non-test sources.
+    SubsystemNotWired {
+        subsystem: String,
+        entry: String,
+        consumer: String,
+    },
+    /// A wired subsystem's consumer is its own crate, which is not the composition root.
+    SubsystemSelfConsumer { subsystem: String, krate: String },
+    /// A wired subsystem's consumer defines its own item named like the entry.
+    SubsystemShadowed {
+        subsystem: String,
+        entry: String,
+        consumer: String,
+    },
+    /// A wired subsystem's consumer does not depend on the defining crate.
+    SubsystemConsumerLacksDependency {
+        subsystem: String,
+        consumer: String,
+        krate: String,
+    },
+    /// A planned subsystem's tracking reference is not an open plan task.
+    SubsystemTask {
+        subsystem: String,
+        task: String,
+        problem: TaskProblem,
+    },
+    /// A planned subsystem's entry already appears in the workspace.
+    SubsystemHalfWired {
+        subsystem: String,
+        entry: String,
+        path: PathBuf,
+        line: usize,
     },
 }
 
@@ -277,6 +333,98 @@ impl fmt::Display for Violation {
                 f,
                 "{}:{line}: `{marker}` without an issue link — write `{marker}(#123)` referencing \
                  a tracking issue, or resolve it now",
+                path.display()
+            ),
+            Self::SubsystemField {
+                subsystem,
+                field,
+                status,
+                required: true,
+            } => write!(
+                f,
+                "[subsystems.{subsystem}]: status `{status}` requires a non-empty `{field}`"
+            ),
+            Self::SubsystemField {
+                subsystem,
+                field,
+                status,
+                required: false,
+            } => write!(
+                f,
+                "[subsystems.{subsystem}]: `{field}` is not allowed with status `{status}` — \
+                 remove it or change the status"
+            ),
+            Self::SubsystemEntryNotIdentifier { subsystem, entry } => write!(
+                f,
+                "[subsystems.{subsystem}]: entry `{entry}` must be one identifier, such as \
+                 `MachineRegistry`"
+            ),
+            Self::SubsystemUnknownCrate {
+                subsystem,
+                field,
+                krate,
+            } => write!(
+                f,
+                "[subsystems.{subsystem}]: {field} `{krate}` is not a workspace member"
+            ),
+            Self::SubsystemEntryNotDefined {
+                subsystem,
+                entry,
+                krate,
+            } => write!(
+                f,
+                "[subsystems.{subsystem}]: `{entry}` is not defined in the non-test sources of \
+                 `{krate}` — fix `entry` or `crate`, or mark the subsystem `planned` with a task"
+            ),
+            Self::SubsystemNotWired {
+                subsystem,
+                entry,
+                consumer,
+            } => write!(
+                f,
+                "[subsystems.{subsystem}]: `{entry}` is built but `{consumer}` never uses it \
+                 outside tests — wire it in, or mark the subsystem `planned` with a task and \
+                 remove the unused code"
+            ),
+            Self::SubsystemSelfConsumer { subsystem, krate } => write!(
+                f,
+                "[subsystems.{subsystem}]: consumer `{krate}` is the defining crate, which only \
+                 the composition root (the single highest-layer product crate, a binary) may be \
+                 — name the crate that calls it"
+            ),
+            Self::SubsystemShadowed {
+                subsystem,
+                entry,
+                consumer,
+            } => write!(
+                f,
+                "[subsystems.{subsystem}]: `{consumer}` defines its own `{entry}`, so its uses \
+                 of that name prove nothing about the subsystem — rename one of them"
+            ),
+            Self::SubsystemConsumerLacksDependency {
+                subsystem,
+                consumer,
+                krate,
+            } => write!(
+                f,
+                "[subsystems.{subsystem}]: consumer `{consumer}` does not depend on `{krate}`, \
+                 so it cannot use its entry — fix `consumer` or `crate`"
+            ),
+            Self::SubsystemTask {
+                subsystem,
+                task,
+                problem,
+            } => write!(f, "[subsystems.{subsystem}]: task `{task}` {problem}"),
+            Self::SubsystemHalfWired {
+                subsystem,
+                entry,
+                path,
+                line,
+            } => write!(
+                f,
+                "{}:{line}: `{entry}` of planned subsystem `{subsystem}` already exists — a \
+                 planned subsystem has no code; finish and wire it (status `wired`), or remove \
+                 it",
                 path.display()
             ),
         }
