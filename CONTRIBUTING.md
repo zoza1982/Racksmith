@@ -52,7 +52,7 @@ Other `cargo xtask` commands:
 
 | Command                     | What it does                                                    |
 |-----------------------------|-----------------------------------------------------------------|
-| `cargo xtask arch`          | Enforce [`architecture.toml`](architecture.toml).               |
+| `cargo xtask arch`          | Enforce [`architecture.toml`](architecture.toml) and the MSRV.  |
 | `cargo xtask docs`          | Fail if generated sections are stale.                           |
 | `cargo xtask docs --fix`    | Regenerate them (`docs/lifecycle.md`, the TLA+ `Transitions`).  |
 | `cargo xtask install-hooks` | Point git at [`.githooks/`](.githooks/).                        |

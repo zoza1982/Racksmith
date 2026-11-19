@@ -70,6 +70,14 @@ pub(crate) enum Violation {
     ForbiddenRootManifestKey { key: String },
     /// The fuzz project's lint table differs from the workspace lint policy.
     MirroredLintsDiffer { path: PathBuf },
+    /// No workspace member declares a `rust-version`, so the MSRV cannot be checked.
+    MissingRustVersion,
+    /// A locked dependency declares a `rust-version` above the workspace MSRV.
+    DependencyNeedsNewerRust {
+        package: String,
+        rust_version: String,
+        msrv: String,
+    },
     /// A crate's target or build script lives outside the crate directory.
     TargetOutsideCrate {
         krate: String,
@@ -111,6 +119,8 @@ pub(crate) enum Violation {
         line: usize,
         construct: &'static str,
     },
+    /// A `clippy` cfg makes code differ between clippy runs and real builds.
+    LinterCfg { path: PathBuf, line: usize },
     /// A `mod.rs` module file exists.
     ModRsFile { path: PathBuf },
     /// A `TODO`/`FIXME` comment is not linked to an issue.
@@ -179,6 +189,21 @@ impl fmt::Display for Violation {
                  inherit the workspace policy, so copy the root table exactly",
                 path.display()
             ),
+            Self::MissingRustVersion => write!(
+                f,
+                "no workspace member declares `rust-version` — set it once in the root \
+                 [workspace.package] and inherit it with `rust-version.workspace = true`"
+            ),
+            Self::DependencyNeedsNewerRust {
+                package,
+                rust_version,
+                msrv,
+            } => write!(
+                f,
+                "dependency `{package}` requires Rust {rust_version}, above the workspace MSRV \
+                 {msrv} — pin an older version of it in Cargo.lock, or raise `rust-version` \
+                 (and clippy.toml `msrv`) deliberately in its own PR"
+            ),
             Self::TargetOutsideCrate { krate, key, target } => write!(
                 f,
                 "crate `{krate}` sets `{key} = \"{target}\"`, outside the crate directory — keep \
@@ -234,6 +259,13 @@ impl fmt::Display for Violation {
                 f,
                 "{}:{line}: `{construct}` loads code from a file the architecture rules may not \
                  scan — declare modules with `mod name;` in the standard file layout",
+                path.display()
+            ),
+            Self::LinterCfg { path, line } => write!(
+                f,
+                "{}:{line}: the `clippy` cfg hides code from clippy or shows it different code \
+                 than the compiler builds — remove it; for a justified exception put \
+                 `#[expect(lint, reason = \"...\")]` on the smallest item",
                 path.display()
             ),
             Self::ModRsFile { path } => write!(

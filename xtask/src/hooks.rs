@@ -1,7 +1,6 @@
 //! `cargo xtask install-hooks`: use the versioned git hooks in `.githooks/`.
 
 use std::path::Path;
-use std::process::Command;
 
 use anyhow::Result;
 
@@ -17,7 +16,7 @@ const HOOKS_DIR: &str = ".githooks";
 /// Returns an error if `git config` fails, e.g. outside a git checkout.
 pub(crate) fn install(root: &Path) -> Result<()> {
     process::run(
-        Command::new("git")
+        process::command("git")
             .args(["config", "core.hooksPath", HOOKS_DIR])
             .current_dir(root),
     )?;
