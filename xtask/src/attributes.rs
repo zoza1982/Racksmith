@@ -26,6 +26,19 @@ impl Attribute<'_> {
         self.contains_pair(name, "=")
     }
 
+    /// Whether a meta item of the attribute is a macro fragment, as in `#[$meta]` or
+    /// `#[cfg_attr(test, $meta)]`: what it expands to (perhaps `path = "..."`) is invisible
+    /// here. A fragment in value position, as in `#[doc = $text]`, is not a meta item.
+    pub(crate) fn spells_meta_from_fragment(&self) -> bool {
+        let starts_with_fragment = self.body.first().is_some_and(|token| token.is("$"));
+        let fragment_in_cfg_attr = self.body.first().is_some_and(|token| token.is("cfg_attr"))
+            && self
+                .body
+                .windows(2)
+                .any(|pair| matches!(pair, [comma, dollar] if comma.is(",") && dollar.is("$")));
+        starts_with_fragment || fragment_in_cfg_attr
+    }
+
     fn contains_pair(&self, first: &str, second: &str) -> bool {
         self.body
             .windows(2)

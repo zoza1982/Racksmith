@@ -271,12 +271,27 @@ mod tests {
         let path = Path::new("fuzz/Cargo.toml");
         let same = "[lints.clippy]\nunwrap_used = \"deny\"\n";
         assert_eq!(check_mirrored_lints(root, same, path).unwrap(), None);
-        let weaker = "[lints.clippy]\nunwrap_used = \"warn\"\n";
+        let differ = Some(Violation::MirroredLintsDiffer {
+            path: path.to_path_buf(),
+        });
+        for mirror in [
+            "[lints.clippy]\nunwrap_used = \"warn\"\n",
+            "[lints.clippy]\nunwrap_used = \"deny\"\npanic = \"allow\"\n",
+            "[lints.clippy]\nunwrap_used = { level = \"deny\", priority = 1 }\n",
+            "[lints.clippy]\nunwrap_used = \"deny\"\n[lints.rust]\nunsafe_code = \"allow\"\n",
+            "[lints.clippy]\n",
+            "",
+        ] {
+            assert_eq!(
+                check_mirrored_lints(root, mirror, path).unwrap(),
+                differ,
+                "mirror: {mirror}"
+            );
+        }
         assert_eq!(
-            check_mirrored_lints(root, weaker, path).unwrap(),
-            Some(Violation::MirroredLintsDiffer {
-                path: path.to_path_buf()
-            })
+            check_mirrored_lints("[workspace]\n", "", path).unwrap(),
+            differ,
+            "a root without a lint policy is never a match"
         );
     }
 

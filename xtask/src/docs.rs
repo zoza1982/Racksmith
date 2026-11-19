@@ -84,9 +84,10 @@ const SECTIONS: &[GeneratedSection] = &[
 ///
 /// # Errors
 ///
-/// Returns an error if a generator fails, a file lacks its markers, or (without `fix`) a
-/// section is out of date.
+/// Returns an error if a generator fails or prints nothing, a file lacks its markers, or
+/// (without `fix`) a section is out of date.
 pub(crate) fn run(root: &Path, fix: bool) -> Result<()> {
+    ensure!(!SECTIONS.is_empty(), "docs: no generated sections to check");
     let mut stale = Vec::new();
     for section in SECTIONS {
         let path = root.join(section.file);
@@ -97,6 +98,7 @@ pub(crate) fn run(root: &Path, fix: bool) -> Result<()> {
             )
         })?;
         let generated = process::capture(process::cargo(root).args(section.cargo_args))?;
+        ensure_generated(section, &generated)?;
         let markers = section.style.markers(section.name);
         let expected = replace_section(&current, &markers, &generated)
             .with_context(|| format!("cannot update {}", section.file))?;
@@ -120,7 +122,22 @@ pub(crate) fn run(root: &Path, fix: bool) -> Result<()> {
             stale.join(", ")
         );
     }
-    term::info("docs: generated sections are up to date")?;
+    term::info(&format!(
+        "docs: {} generated sections are up to date",
+        SECTIONS.len()
+    ))?;
+    Ok(())
+}
+
+/// Fails if a generator printed nothing: an empty section would always "match" an emptied
+/// file, so the check would pass without comparing anything.
+fn ensure_generated(section: &GeneratedSection, generated: &str) -> Result<()> {
+    ensure!(
+        !generated.trim().is_empty(),
+        "docs: the generator of `{}` ({}) printed nothing",
+        section.name,
+        section.file
+    );
     Ok(())
 }
 
@@ -199,6 +216,14 @@ mod tests {
             updated,
             "A == 1\n\\* BEGIN GENERATED: t\nB == 2\n\\* END GENERATED: t\n====\n"
         );
+    }
+
+    #[test]
+    fn empty_generator_output_is_an_error() {
+        let section = &SECTIONS[0];
+        assert!(ensure_generated(section, "| a | b |\n").is_ok(), "content");
+        let error = ensure_generated(section, " \n").unwrap_err().to_string();
+        assert!(error.contains("printed nothing"), "{error}");
     }
 
     #[test]

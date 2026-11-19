@@ -4,7 +4,10 @@
 //!   `#[expect(lint, reason = "...")]` on an item smaller than a module: `allow`, `warn`, `deny`
 //!   and `forbid` are rejected (directly or inside `cfg_attr`), and so is a module-wide `expect`.
 //! - Modules use the standard file layout, so every line of code is a file these rules scan: no
-//!   `mod.rs`, no `#[path]`, no `include!`.
+//!   `mod.rs`, no `#[path]`, no `include!` (however it is named), and no attribute whose meta item
+//!   comes from a macro fragment (`#[$meta]`), which can expand to `path = "..."`.
+//! - No `clippy` cfg (`#[cfg(not(clippy))]`, `cfg!(clippy)`, ...): clippy must see the code that
+//!   is built.
 //! - The banned patterns of `architecture.toml` apply to every file of the listed crates except
 //!   tests, benches and examples (so build scripts are covered), and are matched both as tokens
 //!   and through `use` imports and aliases.
@@ -79,6 +82,7 @@ fn check_file(file: &SourceFile, bans: &[Ban<'_>]) -> Vec<Violation> {
             .filter_map(|attribute| attribute_violation(file, attribute)),
     );
     violations.extend(include_macros(file, &tokens));
+    violations.extend(linter_cfgs(file, &tokens));
     if !file.is_test_code {
         violations.extend(banned_patterns(file, &tokens, bans));
     }
@@ -98,22 +102,45 @@ fn attribute_violation(file: &SourceFile, attribute: &Attribute<'_>) -> Option<V
             construct: "#[path]",
         });
     }
+    if attribute.spells_meta_from_fragment() {
+        return Some(Violation::HiddenModuleSource {
+            path,
+            line,
+            construct: "#[$fragment]",
+        });
+    }
     let module_wide = attribute.inner || attribute.applies_to_module();
     (attribute.calls("expect") && module_wide).then_some(Violation::ModuleWideExpect { path, line })
 }
 
+/// Every use of the identifier `include`, not just `include!(...)`: the macro can also be
+/// reached as `use std::include as load;` or through a macro fragment, as in `m!(include)`.
 fn include_macros(file: &SourceFile, tokens: &[Token]) -> Vec<Violation> {
     tokens
-        .windows(2)
-        .filter_map(|pair| match pair {
-            [name, bang] if name.is("include") && bang.is("!") => {
-                Some(Violation::HiddenModuleSource {
-                    path: file.path.clone(),
-                    line: name.line,
-                    construct: "include!",
-                })
-            }
-            _ => None,
+        .iter()
+        .filter(|token| token.is("include"))
+        .map(|token| Violation::HiddenModuleSource {
+            path: file.path.clone(),
+            line: token.line,
+            construct: "include!",
+        })
+        .collect()
+}
+
+/// Every `clippy` cfg: the identifier `clippy` not followed by `::`, which only lint paths such
+/// as `clippy::unwrap_used` are. `#[cfg(not(clippy))]` hides code from clippy, and `cfg!(clippy)`
+/// or `#[cfg_attr(clippy, ...)]` show it different code than the build, so either way clippy
+/// passes code it never examined.
+fn linter_cfgs(file: &SourceFile, tokens: &[Token]) -> Vec<Violation> {
+    tokens
+        .iter()
+        .enumerate()
+        .filter(|&(index, token)| {
+            token.is("clippy") && !tokens.get(index + 1).is_some_and(|next| next.is("::"))
+        })
+        .map(|(_, token)| Violation::LinterCfg {
+            path: file.path.clone(),
+            line: token.line,
         })
         .collect()
 }
@@ -344,24 +371,86 @@ mod tests {
 
     #[test]
     fn hidden_module_sources_are_reported() {
-        for (text, construct) in [
-            ("#[path = \"inc/evil.inc\"]\nmod evil;", "#[path]"),
-            ("#[cfg_attr(unix, path = \"u.rs\")]\nmod m;", "#[path]"),
-            ("include!(\"generated.rs\");", "include!"),
+        for (text, line, construct) in [
+            ("#[path = \"inc/evil.inc\"]\nmod evil;", 1, "#[path]"),
+            ("#[cfg_attr(unix, path = \"u.rs\")]\nmod m;", 1, "#[path]"),
+            ("#[path = r\"inc/evil.rs\"]\nmod evil;", 1, "#[path]"),
+            ("#[path = r#\"inc/evil.rs\"#]\nmod evil;", 1, "#[path]"),
+            ("include!(\"generated.rs\");", 1, "include!"),
+            ("std::include ! (r\"generated.rs\");", 1, "include!"),
+            (
+                "macro_rules! m { ($p:expr) => { include!($p) }; }\nm!(\"evil.rs\");",
+                1,
+                "include!",
+            ),
+            // Reached without the `include !` token pair: renamed, or named by a fragment.
+            (
+                "use std::include as load;\nload!(\"evil.rs\");",
+                1,
+                "include!",
+            ),
+            (
+                "macro_rules! m { ($i:ident) => { $i!(\"evil.rs\"); }; }\nm!(include);",
+                2,
+                "include!",
+            ),
+            // An attribute spelled by a macro fragment can be `path = "..."` at expansion.
+            (
+                "macro_rules! m { ($a:meta) => { #[$a] mod evil; }; }\nm!(path = \"evil.rs\");",
+                1,
+                "#[$fragment]",
+            ),
+            (
+                "macro_rules! m {\n($($a:tt)*) => { #[cfg_attr(all(), $($a)*)] mod evil; };\n}",
+                2,
+                "#[$fragment]",
+            ),
         ] {
             let violations = check_one("api", file("src/lib.rs", false, text));
             assert_eq!(
                 violations,
                 vec![Violation::HiddenModuleSource {
                     path: PathBuf::from("src/lib.rs"),
-                    line: 1,
+                    line,
                     construct,
                 }],
                 "input: {text}"
             );
         }
+        let documented = "macro_rules! m { ($d:expr) => { #[doc = $d] pub fn f() {} }; }";
+        assert_eq!(
+            check_one("api", file("src/lib.rs", false, documented)),
+            vec![]
+        );
         let fixture = "const S: &str = include_str!(\"fixture.txt\");";
         assert_eq!(check_one("api", file("src/lib.rs", false, fixture)), vec![]);
+    }
+
+    #[test]
+    fn linter_detection_cfgs_are_reported() {
+        for (text, line) in [
+            ("#[cfg(not(clippy))]\nfn hidden() {}", 1),
+            ("#[cfg(clippy)]\nfn stub() {}", 1),
+            ("#[cfg(any(test, clippy))]\nfn f() {}", 1),
+            ("#[cfg_attr(clippy, expect(dead_code))]\nfn f() {}", 1),
+            ("fn f() -> bool {\n    cfg!(clippy)\n}", 2),
+            ("fn f() -> bool { cfg!(not(\n  clippy)) }", 2),
+        ] {
+            let violations = check_one("api", file("src/lib.rs", false, text));
+            assert_eq!(
+                violations,
+                vec![Violation::LinterCfg {
+                    path: PathBuf::from("src/lib.rs"),
+                    line,
+                }],
+                "input: {text}"
+            );
+        }
+        let lint_path = "#[expect(clippy::unwrap_used, reason = \"x\")]\nfn f() {}";
+        assert_eq!(
+            check_one("api", file("src/lib.rs", false, lint_path)),
+            vec![]
+        );
     }
 
     #[test]

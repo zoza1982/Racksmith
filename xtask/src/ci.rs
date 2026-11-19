@@ -10,7 +10,6 @@
 //! instead, so CI can never pass by skipping.
 
 use std::path::Path;
-use std::process::Command;
 
 use anyhow::{Context as _, Result, bail};
 
@@ -67,7 +66,7 @@ impl Tools {
             process::succeeds(process::cargo(root).args([subcommand, "--version"]))
         };
         let program_has =
-            |program: &str, flag: &str| process::succeeds(Command::new(program).arg(flag));
+            |program: &str, flag: &str| process::succeeds(process::command(program).arg(flag));
         Self {
             nextest: cargo_has("nextest"),
             deny: cargo_has("deny"),
@@ -101,7 +100,7 @@ fn execute(root: &Path, action: Action, strict: bool) -> Result<()> {
             process::run(process::cargo(root).args(args).envs(env.iter().copied()))
         }
         Action::External { program, args } => {
-            process::run(Command::new(program).args(args).current_dir(root))
+            process::run(process::command(program).args(args).current_dir(root))
         }
         Action::Arch => arch::run(root),
         Action::Docs => docs::run(root, false),

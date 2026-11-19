@@ -12,6 +12,7 @@ mod dependency_rules;
 mod docs;
 mod hooks;
 mod manifest_rules;
+mod msrv_rules;
 mod paths;
 mod process;
 mod source_rules;
