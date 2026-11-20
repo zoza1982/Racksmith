@@ -6,6 +6,7 @@
 use std::fmt;
 use std::path::PathBuf;
 
+use crate::exemption_ledger::{FillerProblem, ReferenceProblem, slash_path};
 use crate::plan_tasks::TaskProblem;
 
 /// The kind of a dependency edge, mirroring the manifest sections.
@@ -130,6 +131,53 @@ pub(crate) enum Violation {
         path: PathBuf,
         line: usize,
         marker: String,
+    },
+    /// An `#[expect]` has no entry in the exemption ledger.
+    UnlistedExemption {
+        path: PathBuf,
+        line: usize,
+        item: String,
+        lints: String,
+    },
+    /// Two `#[expect]` attributes of one file exempt the same lints on the same item.
+    AmbiguousExemption {
+        path: PathBuf,
+        line: usize,
+        item: String,
+        lints: String,
+    },
+    /// A ledger entry matches no `#[expect]` attribute.
+    StaleExemption {
+        file: String,
+        item: String,
+        lints: String,
+    },
+    /// The ledger lists one exemption more than once.
+    DuplicateExemptionEntry {
+        file: String,
+        item: String,
+        lints: String,
+    },
+    /// A ledger entry's reference does not resolve.
+    UnresolvedExemptionReference {
+        file: String,
+        item: String,
+        reference: String,
+        problem: ReferenceProblem,
+    },
+    /// A ledger entry's justification is filler.
+    FillerExemptionJustification {
+        file: String,
+        item: String,
+        problem: FillerProblem,
+    },
+    /// An `#[expect]` attribute's `reason` is missing or filler.
+    FillerExemptionReason {
+        path: PathBuf,
+        line: usize,
+        item: String,
+        lints: String,
+        problem: FillerProblem,
     },
     /// A subsystem lacks a field its status requires, or sets one it forbids.
     SubsystemField {
@@ -333,6 +381,76 @@ impl fmt::Display for Violation {
                 f,
                 "{}:{line}: `{marker}` without an issue link — write `{marker}(#123)` referencing \
                  a tracking issue, or resolve it now",
+                path.display()
+            ),
+            Self::UnlistedExemption {
+                path,
+                line,
+                item,
+                lints,
+            } => write!(
+                f,
+                "{}:{line}: `#[expect({lints})]` on `{item}` has no entry in exceptions.toml — \
+                 fix the code so the lint passes, or add an [[exceptions]] entry with \
+                 file = \"{}\", item = \"{item}\", the lints, a justification and a reference \
+                 that resolves (`ADR-NNNN`, an open plan task `M1-A-01` or `design N.M`) for \
+                 code-owner review",
+                path.display(),
+                slash_path(path)
+            ),
+            Self::AmbiguousExemption {
+                path,
+                line,
+                item,
+                lints,
+            } => write!(
+                f,
+                "{}:{line}: another `#[expect({lints})]` in this file also exempts `{item}`, so a \
+                 ledger entry cannot tell them apart — merge them, or move one onto a smaller \
+                 named item",
+                path.display()
+            ),
+            Self::StaleExemption { file, item, lints } => write!(
+                f,
+                "exceptions.toml: the entry for `{item}` in {file} ({lints}) matches no \
+                 `#[expect]` attribute — remove the stale entry, or fix its file, item or lints"
+            ),
+            Self::DuplicateExemptionEntry { file, item, lints } => write!(
+                f,
+                "exceptions.toml: `{item}` in {file} ({lints}) is listed more than once — keep \
+                 one entry"
+            ),
+            Self::UnresolvedExemptionReference {
+                file,
+                item,
+                reference,
+                problem,
+            } => write!(
+                f,
+                "exceptions.toml: the entry for `{item}` in {file} cites `{reference}`, which \
+                 {problem}"
+            ),
+            Self::FillerExemptionJustification {
+                file,
+                item,
+                problem,
+            } => write!(
+                f,
+                "exceptions.toml: the justification for `{item}` in {file} {problem} — explain \
+                 in full sentences why the lint is wrong for this item and why the code should \
+                 not change"
+            ),
+            Self::FillerExemptionReason {
+                path,
+                line,
+                item,
+                lints,
+                problem,
+            } => write!(
+                f,
+                "{}:{line}: the reason of `#[expect({lints})]` on `{item}` {problem} — say why \
+                 the lint does not apply here, consistently with its exceptions.toml \
+                 justification",
                 path.display()
             ),
             Self::SubsystemField {

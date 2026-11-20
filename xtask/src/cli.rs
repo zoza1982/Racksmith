@@ -9,7 +9,8 @@ pub(crate) const USAGE: &str = "\
 Usage: cargo xtask <COMMAND>
 
 Commands:
-  arch            Enforce architecture.toml: layering, dependency policy, manifest and source rules
+  arch            Enforce architecture.toml (layering, dependency policy, manifest and source
+                  rules) and the exemption ledger exceptions.toml
   docs [--fix]    Check (or with --fix, regenerate) generated sections of the docs
   spec [--fix]    Check requirements.toml against the design, plan, code and tests, and
                   (with --fix) regenerate docs/requirements.md

@@ -60,6 +60,10 @@ The lint policy lives in the root [`Cargo.toml`](Cargo.toml) (`[workspace.lints]
 - If a lint is genuinely wrong for one item, use
   `#[expect(clippy::some_lint, reason = "why this case is the exception")]` on the smallest
   possible item. `expect` fails the build once the exception is no longer needed.
+- In the same PR, add its entry to [`exceptions.toml`](exceptions.toml) with a real
+  justification and a reference that resolves (an ADR, an open plan task or a design section).
+  `cargo xtask arch` rejects missing or stale entries and filler such as `"x"` or `"fix later"`
+  ([ADR 0036](docs/adr/0036-exemption-ledger.md)); the code owner approves the entry.
 - Lint levels are set only in `Cargo.toml`. `cargo xtask arch` rejects `allow`, `warn`, `deny`
   and `forbid` attributes (including inside `cfg_attr`), inner `#![expect]` and `expect` on a
   whole module.

@@ -683,7 +683,7 @@ fn own_attributes(member: &[Token]) -> Vec<Attribute<'_>> {
 }
 
 /// Splits a list at commas outside brackets and generics.
-fn split_top_level(tokens: &[Token]) -> Vec<&[Token]> {
+pub(crate) fn split_top_level(tokens: &[Token]) -> Vec<&[Token]> {
     let mut parts = Vec::new();
     let mut depth = 0_usize;
     let mut start = 0;
@@ -705,7 +705,7 @@ fn split_top_level(tokens: &[Token]) -> Vec<&[Token]> {
 }
 
 /// Whether the `>` at `index` is the second half of `->`.
-fn is_arrow(tokens: &[Token], index: usize) -> bool {
+pub(crate) fn is_arrow(tokens: &[Token], index: usize) -> bool {
     index
         .checked_sub(1)
         .and_then(|before| tokens.get(before))
@@ -713,7 +713,7 @@ fn is_arrow(tokens: &[Token], index: usize) -> bool {
 }
 
 /// Skips `#[...]` attributes and a visibility such as `pub(crate)`.
-fn skip_attributes_and_visibility(tokens: &[Token]) -> &[Token] {
+pub(crate) fn skip_attributes_and_visibility(tokens: &[Token]) -> &[Token] {
     let mut rest = tokens;
     loop {
         rest = match rest {
@@ -726,7 +726,7 @@ fn skip_attributes_and_visibility(tokens: &[Token]) -> &[Token] {
 }
 
 /// Skips generic parameters and a `where` clause, up to the item's body.
-fn skip_generics_and_where(tokens: &[Token]) -> &[Token] {
+pub(crate) fn skip_generics_and_where(tokens: &[Token]) -> &[Token] {
     let mut rest = tokens;
     if opens(rest, "<") {
         let mut depth = 0_usize;
@@ -754,13 +754,14 @@ fn skip_generics_and_where(tokens: &[Token]) -> &[Token] {
     rest
 }
 
-fn opens(tokens: &[Token], open: &str) -> bool {
+/// Whether `tokens` starts with the opening bracket or keyword `open`.
+pub(crate) fn opens(tokens: &[Token], open: &str) -> bool {
     tokens.first().is_some_and(|token| token.is(open))
 }
 
 /// The length of the bracketed group that starts at `tokens[0]`, brackets included; an
 /// unterminated group extends to the end.
-fn group_len(tokens: &[Token]) -> usize {
+pub(crate) fn group_len(tokens: &[Token]) -> usize {
     let mut depth = 0_usize;
     for (index, token) in tokens.iter().enumerate() {
         match token.text.as_str() {
@@ -778,7 +779,7 @@ fn group_len(tokens: &[Token]) -> usize {
 }
 
 /// The tokens inside the bracketed group that starts at `tokens[0]`, brackets excluded.
-fn inside_group(tokens: &[Token]) -> &[Token] {
+pub(crate) fn inside_group(tokens: &[Token]) -> &[Token] {
     tokens
         .get(1..group_len(tokens).saturating_sub(1))
         .unwrap_or_default()

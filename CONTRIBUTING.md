@@ -53,7 +53,7 @@ Other `cargo xtask` commands:
 
 | Command                     | What it does                                                    |
 |-----------------------------|-----------------------------------------------------------------|
-| `cargo xtask arch`          | Enforce [`architecture.toml`](architecture.toml) and the MSRV.  |
+| `cargo xtask arch`          | Enforce [`architecture.toml`](architecture.toml), the MSRV and the exemption ledger [`exceptions.toml`](exceptions.toml). |
 | `cargo xtask docs`          | Fail if generated sections are stale.                           |
 | `cargo xtask docs --fix`    | Regenerate them (`docs/lifecycle.md`, the TLA+ `Transitions`).  |
 | `cargo xtask spec`          | Check [`requirements.toml`](requirements.toml) against the design, the M1 plan, the code and the test listing ([ADR 0035](docs/adr/0035-completeness-layer.md)). |
@@ -88,8 +88,8 @@ live where it cannot see them; bump them deliberately, in a `ci:` or `build:` pu
    intermediate commits do not need to be tidy.
 5. Merging needs green `ci-success` and `verify-success` checks and an approving review from a
    code owner ([CODEOWNERS](.github/CODEOWNERS) covers every file, and lists the guardrails —
-   lint configuration, `architecture.toml`, `deny.toml`, `xtask/`, `specs/`, `fuzz/`, `.github/`
-   — explicitly). How this works with a single maintainer is described in
+   lint configuration, `architecture.toml`, the exemption ledger `exceptions.toml`, `deny.toml`,
+   `xtask/`, `specs/`, `fuzz/`, `.github/` — explicitly). How this works with a single maintainer is described in
    [GOVERNANCE.md](GOVERNANCE.md).
 
 A Developer Certificate of Origin (DCO) sign-off is **not** required. Contributions are accepted
