@@ -233,6 +233,14 @@ pub(crate) enum Violation {
         path: PathBuf,
         line: usize,
     },
+    /// The git index tracks files under a `target` directory, which is build output.
+    TrackedBuildOutput { dir: String, files: usize },
+    /// The git index tracks a file larger than the limit of rule 9.
+    TrackedFileTooLarge {
+        path: String,
+        bytes: u64,
+        limit: u64,
+    },
 }
 
 impl fmt::Display for Violation {
@@ -544,6 +552,19 @@ impl fmt::Display for Violation {
                  planned subsystem has no code; finish and wire it (status `wired`), or remove \
                  it",
                 path.display()
+            ),
+            Self::TrackedBuildOutput { dir, files } => write!(
+                f,
+                "{dir}/: {files} tracked file(s) of build output — untrack them with \
+                 `git rm -r --cached {dir}` and keep the unanchored `target/` line in .gitignore \
+                 so that a nested build directory stays ignored"
+            ),
+            Self::TrackedFileTooLarge { path, bytes, limit } => write!(
+                f,
+                "{path}: tracked file of {bytes} bytes is over the {limit}-byte limit — large \
+                 binaries belong in a release asset or Git LFS: untrack it with \
+                 `git rm --cached {path}` and add `/{path}` to .gitignore; a file that must be \
+                 in the repository needs an ADR that raises the limit"
             ),
         }
     }

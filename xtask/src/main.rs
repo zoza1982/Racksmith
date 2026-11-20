@@ -29,6 +29,7 @@ mod subsystem_rules;
 mod term;
 mod test_listing;
 mod tokens;
+mod tracked_files;
 mod violation;
 mod workspace;
 
