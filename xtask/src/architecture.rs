@@ -22,6 +22,9 @@ pub(crate) struct Architecture {
     /// Code patterns forbidden in the `src/` directory of specific crates.
     #[serde(default)]
     pub(crate) source_bans: Vec<SourceBan>,
+    /// Designed subsystems, by name: each is wired into a consumer or planned (rule 7).
+    #[serde(default)]
+    pub(crate) subsystems: BTreeMap<String, Subsystem>,
 }
 
 /// Rules for a single workspace crate.
@@ -63,6 +66,47 @@ pub(crate) struct SourceBan {
     pub(crate) pattern: String,
     /// Why the pattern is banned, shown in violation messages.
     pub(crate) reason: String,
+}
+
+/// A designed subsystem: an entry symbol that a consumer must call (`wired`), or that does not
+/// exist yet because a plan task builds it (`planned`). Which fields a status needs is checked
+/// by `cargo xtask arch`, so every problem is reported at once.
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields, rename_all = "kebab-case")]
+pub(crate) struct Subsystem {
+    /// Whether the subsystem is built and called.
+    pub(crate) status: SubsystemStatus,
+    /// The identifier of the subsystem's entry: a type, trait or function.
+    pub(crate) entry: String,
+    /// `wired`: the package whose non-test sources define `entry`.
+    #[serde(rename = "crate")]
+    pub(crate) krate: Option<String>,
+    /// `wired`: the package whose non-test sources must use `entry`.
+    pub(crate) consumer: Option<String>,
+    /// `planned`: the plan tasks that build it, as `M1-A-01`.
+    pub(crate) tasks: Option<Vec<String>>,
+    /// One line on what the subsystem is.
+    pub(crate) reason: String,
+}
+
+/// Whether a subsystem is wired into its consumer or still planned.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub(crate) enum SubsystemStatus {
+    /// Built, and called by its consumer.
+    Wired,
+    /// Not built yet; tracked by plan tasks.
+    Planned,
+}
+
+impl SubsystemStatus {
+    /// The status as written in `architecture.toml`.
+    pub(crate) fn as_str(self) -> &'static str {
+        match self {
+            Self::Wired => "wired",
+            Self::Planned => "planned",
+        }
+    }
 }
 
 impl Architecture {
@@ -154,6 +198,34 @@ mod tests {
             "#,
         );
         assert!(result.is_err(), "an empty pattern would match nothing");
+    }
+
+    #[test]
+    fn parses_subsystems_and_rejects_unknown_subsystem_keys() {
+        let crates = "[crates.core]\nlayer = 0\nworkspace-deps = []\ndeps = []\n\
+                      dev-deps = []\nbuild-deps = []\n";
+        let architecture = Architecture::parse(&format!(
+            "{crates}[subsystems.registry]\nstatus = \"wired\"\nentry = \"Registry\"\n\
+             crate = \"core\"\nconsumer = \"app\"\nreason = \"stores machines\"\n\
+             [subsystems.scheduler]\nstatus = \"planned\"\nentry = \"Scheduler\"\n\
+             tasks = [\"M1-C-01\"]\nreason = \"places work\"\n"
+        ))
+        .unwrap();
+        let registry = &architecture.subsystems["registry"];
+        assert_eq!(registry.status, SubsystemStatus::Wired);
+        assert_eq!(registry.krate.as_deref(), Some("core"));
+        assert_eq!(
+            architecture.subsystems["scheduler"].tasks,
+            Some(vec!["M1-C-01".to_owned()])
+        );
+        for bad in [
+            "status = \"wired\"\nentry = \"X\"\nreason = \"r\"\nissue = 12\n",
+            "status = \"half\"\nentry = \"X\"\nreason = \"r\"\n",
+            "status = \"planned\"\nentry = \"X\"\n",
+        ] {
+            let text = format!("{crates}[subsystems.x]\n{bad}");
+            assert!(Architecture::parse(&text).is_err(), "accepted: {bad}");
+        }
     }
 
     #[test]

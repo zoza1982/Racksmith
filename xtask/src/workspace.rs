@@ -1,7 +1,7 @@
 //! A snapshot of the workspace — crates, their dependency edges and source files — gathered
 //! once from `cargo metadata` and the filesystem so that every rule is a pure function of it.
 
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -123,6 +123,23 @@ pub(crate) fn load_crates(root: &Path) -> Result<Vec<WorkspaceCrate>> {
         .iter()
         .map(|package| workspace_crate(package, &member_dirs))
         .collect()
+}
+
+/// The name of every workspace member, by package ID, to attribute cargo's build messages.
+///
+/// # Errors
+///
+/// Returns an error if `cargo metadata` fails.
+pub(crate) fn load_package_names(root: &Path) -> Result<BTreeMap<String, String>> {
+    let metadata = metadata_command(root)
+        .no_deps()
+        .exec()
+        .context("`cargo metadata` failed")?;
+    Ok(metadata
+        .workspace_packages()
+        .iter()
+        .map(|package| (package.id.repr.clone(), package.name.to_string()))
+        .collect())
 }
 
 /// The names of the given crates, for classifying dependency edges as internal or external.

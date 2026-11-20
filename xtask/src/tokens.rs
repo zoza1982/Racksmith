@@ -12,6 +12,8 @@ pub(crate) struct Token {
     pub(crate) text: String,
     /// 1-based line number of the token.
     pub(crate) line: usize,
+    /// For the opening `"` of a string literal, the literal's raw contents.
+    pub(crate) literal: Option<String>,
 }
 
 impl Token {
@@ -32,7 +34,21 @@ pub(crate) fn tokenize(lines: &[Line]) -> Vec<Token> {
     for line in lines {
         tokenize_into(&line.code, line.number, &mut tokens);
     }
+    attach_literals(&mut tokens, lines);
     merge_raw_identifiers(tokens)
+}
+
+/// Gives the opening `"` of every string literal its contents. The code view writes each
+/// literal as a `""` pair, so the quotes alternate between opening and closing ones.
+fn attach_literals(tokens: &mut [Token], lines: &[Line]) {
+    let mut literals = lines.iter().flat_map(|line| line.literals.iter());
+    let mut opening = true;
+    for token in tokens.iter_mut().filter(|token| token.is("\"")) {
+        if opening {
+            token.literal = literals.next().cloned();
+        }
+        opening = !opening;
+    }
 }
 
 /// Splits a single string, such as a pattern from `architecture.toml`, into token texts.
@@ -61,6 +77,7 @@ fn tokenize_into(code: &str, line: usize, out: &mut Vec<Token>) {
             out.push(Token {
                 text: text.to_owned(),
                 line,
+                literal: None,
             });
         }
         rest = tail;
@@ -123,6 +140,27 @@ mod tests {
     fn raw_identifiers_lose_their_prefix() {
         assert_eq!(texts("std::r#fs::read"), ["std", "::", "fs", "::", "read"]);
         assert_eq!(tokenize_str("r#async fn"), ["async", "fn"]);
+    }
+
+    #[test]
+    fn the_opening_quote_carries_the_literal() {
+        let tokens = tokenize(&source_text::split("f(\"a\", '\"', \"b\nc\");\ng(\"d\");"));
+        let literals: Vec<(Option<&str>, usize)> = tokens
+            .iter()
+            .filter(|token| token.is("\""))
+            .map(|token| (token.literal.as_deref(), token.line))
+            .collect();
+        assert_eq!(
+            literals,
+            [
+                (Some("a"), 1),
+                (None, 1),
+                (Some("b\nc"), 1),
+                (None, 2),
+                (Some("d"), 3),
+                (None, 3),
+            ]
+        );
     }
 
     #[test]

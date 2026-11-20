@@ -12,8 +12,10 @@ use serde::{Deserialize, Serialize};
 
 /// Lifecycle state of a machine.
 ///
-/// Serialized as a `snake_case` string, for example `"commissioning"`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
+/// Serialized as a `snake_case` string, for example `"commissioning"`. It is output only: a
+/// state is reached by applying events, never read from a client, so it does not implement
+/// `Deserialize`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize)]
 #[cfg_attr(kani, derive(kani::Arbitrary))]
 #[serde(rename_all = "snake_case")]
 pub enum MachineState {
@@ -400,7 +402,7 @@ mod tests {
             serde_json::from_str(r#""start_commissioning""#).expect("known event");
         assert_eq!(event, MachineEvent::StartCommissioning, "snake_case event");
         assert!(
-            serde_json::from_str::<MachineState>(r#""Ready""#).is_err(),
+            serde_json::from_str::<MachineEvent>(r#""StartCommissioning""#).is_err(),
             "PascalCase is not accepted"
         );
     }

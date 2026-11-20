@@ -128,6 +128,8 @@ jobs:
         run: cargo xtask arch
       - name: Check generated docs are in sync
         run: cargo xtask docs
+      - name: Check requirements traceability
+        run: cargo xtask spec
 
   msrv:
     name: MSRV

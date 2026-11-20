@@ -9,15 +9,23 @@ mod attributes;
 mod ci;
 mod cli;
 mod dependency_rules;
+mod design_sections;
 mod docs;
+mod finding;
 mod hooks;
 mod manifest_rules;
 mod msrv_rules;
 mod paths;
+mod plan_tasks;
 mod process;
+mod requirements;
+mod rust_items;
 mod source_rules;
 mod source_text;
+mod spec;
+mod subsystem_rules;
 mod term;
+mod test_listing;
 mod tokens;
 mod violation;
 mod workspace;
@@ -47,6 +55,7 @@ fn run() -> Result<()> {
     match command {
         Command::Arch => arch::run(&root),
         Command::Docs { fix } => docs::run(&root, fix),
+        Command::Spec { fix } => spec::run(&root, fix),
         Command::Ci => ci::run(&root),
         Command::InstallHooks => hooks::install(&root),
         Command::Help => term::info(cli::USAGE).context("failed to write usage"),

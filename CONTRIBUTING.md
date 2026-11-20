@@ -40,7 +40,8 @@ cargo xtask ci
 
 This runs, in order and stopping at the first failure: `cargo fmt --check` and clippy (warnings
 denied) for the workspace and `fuzz/`, the tests and doctests, rustdoc with warnings denied,
-`cargo deny check` for both lockfiles, `cargo xtask arch`, `cargo xtask docs`, `typos`,
+`cargo deny check` for both lockfiles, `cargo xtask arch`, `cargo xtask docs`,
+`cargo xtask spec`, `typos`,
 `cargo machete`, actionlint and zizmor, all with `--locked` where cargo resolves dependencies.
 
 CI runs the same commands, plus the jobs that need another toolchain or platform: the MSRV
@@ -55,6 +56,8 @@ Other `cargo xtask` commands:
 | `cargo xtask arch`          | Enforce [`architecture.toml`](architecture.toml) and the MSRV.  |
 | `cargo xtask docs`          | Fail if generated sections are stale.                           |
 | `cargo xtask docs --fix`    | Regenerate them (`docs/lifecycle.md`, the TLA+ `Transitions`).  |
+| `cargo xtask spec`          | Check [`requirements.toml`](requirements.toml) against the design, the M1 plan, the code and the test listing ([ADR 0035](docs/adr/0035-completeness-layer.md)). |
+| `cargo xtask spec --fix`    | Also regenerate the coverage page [`docs/requirements.md`](docs/requirements.md). |
 | `cargo xtask install-hooks` | Point git at [`.githooks/`](.githooks/).                        |
 
 ### Pinned tool versions
