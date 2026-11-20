@@ -1,0 +1,82 @@
+# The exemption ledger: one entry for every `#[expect(...)]` lint exemption in the repository's
+# Rust sources (workspace crates, xtask and fuzz/, test code included). `cargo xtask arch`
+# enforces it, and ADR 0036 (docs/adr/0036-exemption-ledger.md) explains why.
+#
+# This file is code-owned (.github/CODEOWNERS). Its value is the owner's review, not its format:
+# anyone, including an agent, can write an entry, but only the code owner can approve one. A
+# reviewer reads the entry, the attribute and the item together, and rejects an exemption the
+# code could avoid.
+#
+# Each entry:
+#   file          the source file, relative to the repository root, with `/` separators
+#   item          the item the attribute is on, as its path in the file: `MachineState::apply`
+#                 for a method of `impl MachineState`, `Tools` for a struct, `Config::port` for
+#                 a field; an attribute on a statement takes the path of the enclosing item
+#   lints         the lints of the attribute, exactly as written (any order)
+#   justification why the lint is wrong for this item and the code should not change, in full
+#                 sentences (at least 60 characters and 8 distinct words; placeholders such as
+#                 "x" or "needed" and phrases such as "fix later", "for now", "temporary" or
+#                 "bypass" are rejected)
+#   reference     what the exemption rests on, resolved offline: `ADR-NNNN` (an ADR in
+#                 docs/adr/ that is not superseded), an open M1 plan task (`M1-A-01`), or a leaf
+#                 section of the system design (`design 4.4`)
+#
+# The attribute's own `reason = "..."` must also be a real explanation (at least 25 characters
+# and 4 distinct words, same deny-list). It should agree with the justification here; it need
+# not repeat it.
+#
+# `cargo xtask arch` fails on an attribute without an entry, an entry without an attribute
+# (stale), a reference that does not resolve, and a filler justification or reason.
+
+[[exceptions]]
+file = "crates/racksmith-domain/src/lifecycle.rs"
+item = "MachineState::apply"
+lints = ["clippy::too_many_lines"]
+justification = """
+`apply` is the one exhaustive match over every (state, event) pair, with no wildcard arm: \
+invariant I5 of docs/lifecycle.md, enforced by `wildcard_enum_match_arm`. Its length grows with \
+states times events, and ADR 0013 adds the tainted guard and owner, so it only gets longer. \
+Splitting it into helpers would scatter how each pair is classified across functions and make \
+the lifecycle contract harder to review against the transition table, which a test already \
+keeps in agreement with `TRANSITIONS`.\
+"""
+reference = "ADR-0013"
+
+[[exceptions]]
+file = "xtask/src/ci.rs"
+item = "Tools"
+lints = ["clippy::struct_excessive_bools"]
+justification = """
+Each field records whether one optional gate tool is installed, and the six facts are \
+independent: every combination is valid, and each flag only decides whether one step of \
+`cargo xtask ci` runs or is skipped (an error when `CI` is set). The lint targets booleans that \
+encode modes or a state machine, which an enum expresses better; a set of tool variants here \
+would add a type and lookups without ruling out any invalid state.\
+"""
+reference = "ADR-0003"
+
+[[exceptions]]
+file = "xtask/src/finding.rs"
+item = "Finding::fmt"
+lints = ["clippy::too_many_lines"]
+justification = """
+`Display for Finding` is the catalogue of every `cargo xtask spec` message, one arm per variant, \
+each naming the requirements.toml entry and the fix. Its length is the number of finding kinds, \
+not branching logic. Keeping the catalogue in one exhaustive match lets a reviewer check every \
+message in one place, and the compiler forces a message for each new variant; splitting it per \
+rule would only spread the same arms over more functions.\
+"""
+reference = "ADR-0035"
+
+[[exceptions]]
+file = "xtask/src/violation.rs"
+item = "Violation::fmt"
+lints = ["clippy::too_many_lines"]
+justification = """
+`Display for Violation` is the catalogue of every `cargo xtask arch` message, one arm per \
+variant, each stating what is wrong, where, and how to fix it, because the trust pyramid relies \
+on messages an agent can act on. Its length is the number of rules, not branching logic. One \
+exhaustive match keeps every message reviewable in one place and forces a message for each new \
+variant; splitting it per rule would only spread the same arms over more functions.\
+"""
+reference = "ADR-0003"

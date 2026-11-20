@@ -6,6 +6,9 @@ use std::path::{Path, PathBuf};
 use anyhow::{Context as _, Result, bail, ensure};
 
 use crate::architecture::Architecture;
+use crate::design_sections::{self, DESIGN_FILE};
+use crate::exemption_ledger::{ADR_DIR, Adrs, LEDGER_FILE, Ledger, References};
+use crate::expect_attributes;
 use crate::plan_tasks::{PLAN_FILE, PlanTasks};
 use crate::spec::PRODUCT_PREFIX;
 use crate::subsystem_rules::{self, CrateSources};
@@ -29,6 +32,10 @@ struct Examined {
     packages: usize,
     /// Subsystems of `architecture.toml` checked by rule 7.
     subsystems: usize,
+    /// `#[expect]` exemptions checked against the ledger. Zero is a valid count: the sources
+    /// were scanned (`files > 0`), and an entry of the ledger that matched nothing would fail
+    /// as stale, so a scan that missed real attributes cannot pass silently.
+    exemptions: usize,
     /// The MSRV comparison, as `MSRV >= highest (package)`.
     msrv: String,
 }
@@ -54,8 +61,8 @@ impl Examined {
 
     fn summary(&self) -> String {
         format!(
-            "{} crates, {} source files, {} locked packages, {} subsystems ({})",
-            self.crates, self.files, self.packages, self.subsystems, self.msrv
+            "{} crates, {} source files, {} locked packages, {} subsystems, {} exemptions ({})",
+            self.crates, self.files, self.packages, self.subsystems, self.exemptions, self.msrv
         )
     }
 }
@@ -98,6 +105,7 @@ fn collect_violations(root: &Path) -> Result<(Vec<Violation>, Examined)> {
     let crates = workspace::load_crates(root)?;
     let packages = workspace::load_resolved_packages(root)?;
     let msrv = msrv_rules::check(&packages);
+    let plan = PlanTasks::parse(&read(&root.join(PLAN_FILE))?)?;
 
     let mut examined = Examined {
         crates: crates.len(),
@@ -108,7 +116,8 @@ fn collect_violations(root: &Path) -> Result<(Vec<Violation>, Examined)> {
     };
     let mut violations = dependency_rules::check(&architecture, &crates);
     violations.extend(msrv.violations);
-    violations.extend(root_violations(root, &architecture, &mut examined)?);
+    let (fuzz_violations, fuzz_sources) = root_violations(root, &architecture, &mut examined)?;
+    violations.extend(fuzz_violations);
     let mut sources = Vec::with_capacity(crates.len());
     for krate in &crates {
         let (crate_violations, files) =
@@ -119,24 +128,79 @@ fn collect_violations(root: &Path) -> Result<(Vec<Violation>, Examined)> {
     violations.extend(subsystem_violations(
         root,
         &architecture,
+        &plan,
         &crates,
         &sources,
-    )?);
+    ));
+    let all_sources: Vec<&SourceFile> = sources.iter().flatten().chain(&fuzz_sources).collect();
+    let (ledger_violations, exemptions) = ledger_violations(root, &plan, &all_sources)?;
+    violations.extend(ledger_violations);
+    examined.exemptions = exemptions;
     violations.sort();
     Ok((violations, examined))
 }
 
-/// Rule 7, on every workspace crate's sources; the plan is read only if a subsystem exists.
+/// Rule 8, the exemption ledger: every `#[expect]` of `sources` (test code included) against
+/// `exceptions.toml`, with references resolved against the ADRs, `plan` and the design. Returns
+/// the violations and the number of exemptions checked.
+///
+/// # Errors
+///
+/// Returns an error if the ledger, an ADR or the design cannot be read or parsed.
+fn ledger_violations(
+    root: &Path,
+    plan: &PlanTasks,
+    sources: &[&SourceFile],
+) -> Result<(Vec<Violation>, usize)> {
+    let ledger = Ledger::parse(&read(&root.join(LEDGER_FILE))?)?;
+    let adrs = load_adrs(&root.join(ADR_DIR))?;
+    let sections = design_sections::leaf_sections(&read(&root.join(DESIGN_FILE))?)?;
+    let exemptions = expect_attributes::find(sources);
+    let references = References {
+        adrs: &adrs,
+        tasks: plan,
+        sections: &sections,
+    };
+    Ok((ledger.check(&exemptions, references), exemptions.len()))
+}
+
+/// The ADRs in `dir`.
+///
+/// # Errors
+///
+/// Returns an error if the directory or a Markdown file in it cannot be read.
+fn load_adrs(dir: &Path) -> Result<Adrs> {
+    let mut files = Vec::new();
+    let entries = fs::read_dir(dir).with_context(|| format!("failed to list {}", dir.display()))?;
+    for entry in entries {
+        let path = entry
+            .with_context(|| format!("failed to list {}", dir.display()))?
+            .path();
+        let Some(name) = path.file_name().and_then(|name| name.to_str()) else {
+            continue;
+        };
+        if path.extension().is_some_and(|extension| extension == "md") {
+            files.push((name.to_owned(), read(&path)?));
+        }
+    }
+    Ok(Adrs::parse(
+        files
+            .iter()
+            .map(|(name, text)| (name.as_str(), text.as_str())),
+    ))
+}
+
+/// Rule 7, on every workspace crate's sources.
 fn subsystem_violations(
     root: &Path,
     architecture: &Architecture,
+    plan: &PlanTasks,
     crates: &[WorkspaceCrate],
     sources: &[Vec<SourceFile>],
-) -> Result<Vec<Violation>> {
+) -> Vec<Violation> {
     if architecture.subsystems.is_empty() {
-        return Ok(Vec::new());
+        return Vec::new();
     }
-    let plan = PlanTasks::parse(&read(&root.join(PLAN_FILE))?)?;
     let composition_root = composition_root(architecture);
     let crate_sources: Vec<CrateSources<'_>> = crates
         .iter()
@@ -158,7 +222,7 @@ fn subsystem_violations(
             }
         })
         .collect();
-    Ok(subsystem_rules::check(architecture, &plan, &crate_sources))
+    subsystem_rules::check(architecture, plan, &crate_sources)
 }
 
 /// The composition root: the single product crate in the highest layer of `architecture`, or
@@ -218,12 +282,13 @@ fn describe_msrv(report: &msrv_rules::MsrvReport<'_>) -> String {
     }
 }
 
-/// Rules on the root manifest and on the fuzz project, which no `cargo metadata` call sees.
+/// Rules on the root manifest and on the fuzz project, which no `cargo metadata` call sees,
+/// and the fuzz project's sources for the rules that span projects.
 fn root_violations(
     root: &Path,
     architecture: &Architecture,
     examined: &mut Examined,
-) -> Result<Vec<Violation>> {
+) -> Result<(Vec<Violation>, Vec<SourceFile>)> {
     let root_manifest = read(&root.join("Cargo.toml"))?;
     let mut violations = manifest_rules::check_root(&root_manifest)?;
     let fuzz_dir = root.join(FUZZ_DIR);
@@ -236,7 +301,7 @@ fn root_violations(
     )?);
     let fuzz_sources = load_nonempty_sources(root, &fuzz_dir, FUZZ_DIR, examined)?;
     violations.extend(source_rules::check(architecture, FUZZ_DIR, &fuzz_sources));
-    Ok(violations)
+    Ok((violations, fuzz_sources))
 }
 
 fn read(path: &Path) -> Result<String> {
@@ -286,6 +351,7 @@ mod tests {
             files,
             packages,
             subsystems: 2,
+            exemptions: 4,
             msrv: "MSRV 1.98.0".into(),
         }
     }
@@ -295,6 +361,14 @@ mod tests {
         assert!(
             examined(4, 30, 130).ensure_nonempty().is_ok(),
             "complete run"
+        );
+        let no_exemptions = Examined {
+            exemptions: 0,
+            ..examined(4, 30, 130)
+        };
+        assert!(
+            no_exemptions.ensure_nonempty().is_ok(),
+            "a repository without exemptions is complete"
         );
         let no_subsystems = Examined {
             subsystems: 0,
@@ -396,7 +470,8 @@ mod tests {
     fn summary_is_one_terse_line() {
         assert_eq!(
             examined(4, 30, 130).summary(),
-            "4 crates, 30 source files, 130 locked packages, 2 subsystems (MSRV 1.98.0)"
+            "4 crates, 30 source files, 130 locked packages, 2 subsystems, 4 exemptions \
+             (MSRV 1.98.0)"
         );
     }
 }

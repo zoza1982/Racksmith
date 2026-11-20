@@ -16,6 +16,7 @@
 /rust-toolchain.toml    @zoza1982
 /deny.toml              @zoza1982
 /architecture.toml      @zoza1982
+/exceptions.toml        @zoza1982
 /_typos.toml            @zoza1982
 /.cargo/                @zoza1982
 /xtask/                 @zoza1982

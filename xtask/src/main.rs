@@ -11,6 +11,8 @@ mod cli;
 mod dependency_rules;
 mod design_sections;
 mod docs;
+mod exemption_ledger;
+mod expect_attributes;
 mod finding;
 mod hooks;
 mod manifest_rules;
