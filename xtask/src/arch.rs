@@ -15,7 +15,7 @@ use crate::subsystem_rules::{self, CrateSources};
 use crate::violation::DepKind;
 use crate::violation::Violation;
 use crate::workspace::{self, SourceFile, WorkspaceCrate};
-use crate::{dependency_rules, manifest_rules, msrv_rules, source_rules, term};
+use crate::{dependency_rules, manifest_rules, msrv_rules, source_rules, term, tracked_files};
 
 /// The standalone fuzz project: not a workspace member, but held to the same lint policy and
 /// source rules.
@@ -36,6 +36,8 @@ struct Examined {
     /// were scanned (`files > 0`), and an entry of the ledger that matched nothing would fail
     /// as stale, so a scan that missed real attributes cannot pass silently.
     exemptions: usize,
+    /// Files of the git index checked by rule 9 for build output and size.
+    tracked_files: usize,
     /// The MSRV comparison, as `MSRV >= highest (package)`.
     msrv: String,
 }
@@ -56,13 +58,24 @@ impl Examined {
             self.subsystems > 0,
             "architecture: architecture.toml has no [subsystems]; rule 7 examined nothing"
         );
+        ensure!(
+            self.tracked_files > 0,
+            "architecture: git lists no tracked files; rule 9 examined nothing"
+        );
         Ok(())
     }
 
     fn summary(&self) -> String {
         format!(
-            "{} crates, {} source files, {} locked packages, {} subsystems, {} exemptions ({})",
-            self.crates, self.files, self.packages, self.subsystems, self.exemptions, self.msrv
+            "{} crates, {} source files, {} locked packages, {} subsystems, {} exemptions, {} \
+             tracked files ({})",
+            self.crates,
+            self.files,
+            self.packages,
+            self.subsystems,
+            self.exemptions,
+            self.tracked_files,
+            self.msrv
         )
     }
 }
@@ -97,8 +110,8 @@ pub(crate) fn run(root: &Path) -> Result<()> {
 ///
 /// # Errors
 ///
-/// Returns an error if `architecture.toml`, a manifest, a source file or the dependency graph
-/// cannot be read, or if a crate or the fuzz project has no source files.
+/// Returns an error if `architecture.toml`, a manifest, a source file, the dependency graph or
+/// the git index cannot be read, or if a crate or the fuzz project has no source files.
 fn collect_violations(root: &Path) -> Result<(Vec<Violation>, Examined)> {
     let policy = read(&root.join("architecture.toml"))?;
     let architecture = Architecture::parse(&policy)?;
@@ -136,6 +149,9 @@ fn collect_violations(root: &Path) -> Result<(Vec<Violation>, Examined)> {
     let (ledger_violations, exemptions) = ledger_violations(root, &plan, &all_sources)?;
     violations.extend(ledger_violations);
     examined.exemptions = exemptions;
+    let tracked = tracked_files::load(root)?;
+    examined.tracked_files = tracked.len();
+    violations.extend(tracked_files::check(&tracked));
     violations.sort();
     Ok((violations, examined))
 }
@@ -352,6 +368,7 @@ mod tests {
             packages,
             subsystems: 2,
             exemptions: 4,
+            tracked_files: 150,
             msrv: "MSRV 1.98.0".into(),
         }
     }
@@ -374,11 +391,16 @@ mod tests {
             subsystems: 0,
             ..examined(4, 30, 130)
         };
+        let no_tracked_files = Examined {
+            tracked_files: 0,
+            ..examined(4, 30, 130)
+        };
         for empty in [
             examined(0, 30, 130),
             examined(4, 0, 130),
             examined(4, 30, 0),
             no_subsystems,
+            no_tracked_files,
         ] {
             assert!(empty.ensure_nonempty().is_err(), "{empty:?}");
         }
@@ -470,8 +492,8 @@ mod tests {
     fn summary_is_one_terse_line() {
         assert_eq!(
             examined(4, 30, 130).summary(),
-            "4 crates, 30 source files, 130 locked packages, 2 subsystems, 4 exemptions \
-             (MSRV 1.98.0)"
+            "4 crates, 30 source files, 130 locked packages, 2 subsystems, 4 exemptions, 150 \
+             tracked files (MSRV 1.98.0)"
         );
     }
 }

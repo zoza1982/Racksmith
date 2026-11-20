@@ -1,9 +1,35 @@
 #!/bin/sh
-# Fast pre-commit gate: formatting only. The full gate runs on pre-push.
+# Fast pre-commit gate: formatting and staged file sizes. The full gate runs on pre-push.
 # Enable with `cargo xtask install-hooks`; bypass in an emergency with `git commit --no-verify`.
 set -eu
 
 if ! cargo fmt --all --check; then
     echo "pre-commit: formatting differs; run 'cargo fmt --all' and re-stage." >&2
+    exit 1
+fi
+
+# The same limit as MAX_TRACKED_FILE_BYTES in xtask/src/tracked_files.rs (arch rule 9, ADR 0037):
+# large binaries belong in release assets or Git LFS, so they must never reach history. The
+# names are NUL-separated so that any file name survives; xargs hands them to the checker, which
+# measures the staged blob rather than the working-tree file.
+max_bytes=$((5 * 1024 * 1024))
+# shellcheck disable=SC2016 # the script is single-quoted on purpose: sh -c expands it
+if ! git diff --cached --name-only -z --diff-filter=AM |
+    xargs -0 sh -c '
+        max_bytes=$1
+        shift
+        status=0
+        for path in "$@"; do
+            bytes=$(git cat-file -s ":$path")
+            if [ "$bytes" -gt "$max_bytes" ]; then
+                echo "pre-commit: $path is $bytes bytes, over the $max_bytes-byte limit." >&2
+                status=1
+            fi
+        done
+        exit "$status"
+    ' sh "$max_bytes"; then
+    echo "pre-commit: large binaries belong in a release asset or Git LFS. Unstage with" >&2
+    echo "  'git rm --cached <path>' and add the path to .gitignore; a file that must be in the" >&2
+    echo "  repository needs an ADR that raises the limit (see ADR 0037)." >&2
     exit 1
 fi

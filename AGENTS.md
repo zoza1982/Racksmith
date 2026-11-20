@@ -151,6 +151,9 @@ Nothing designed may be missing silently ([ADR 0035](docs/adr/0035-completeness-
 - Do not copy a pattern you would not want copied again. The codebase is the primary input for
   every future change: keep it exemplary.
 - Do not add a dependency for something a few lines of code can do.
+- Do not commit build output or files over 5 MiB: `cargo xtask arch` rule 9 rejects tracked
+  `target` paths and large files, and the pre-commit hook rejects large staged files
+  ([ADR 0037](docs/adr/0037-guard-against-tracked-build-output.md)).
 - Do not change public names in the domain API without updating every caller and the docs.
 - Do not touch secrets, BMC credentials or real hardware in tests; use fakes.
 - Do not "fix" a failing test by changing its expectation unless the old expectation was wrong,
