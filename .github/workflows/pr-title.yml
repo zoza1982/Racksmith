@@ -5,6 +5,11 @@
 # the event payload and needs only read access, which the read-only token GitHub issues to fork
 # PRs already provides. `pull_request_target` would run with a privileged token in the base
 # repository's context for no benefit.
+#
+# Runner choice (ADR 0038): Linux jobs run on the self-hosted runner named by the repository
+# variable CI_RUNNER, or on `ubuntu-latest` when it is unset. Pull requests from forks always get
+# `ubuntu-latest`: this repository is public, and a fork's code must never reach a self-hosted
+# runner. Keep that condition in every `runs-on` that reads CI_RUNNER.
 name: PR title
 
 on:
@@ -21,7 +26,7 @@ concurrency:
 jobs:
   conventional-commit:
     name: conventional commit title
-    runs-on: ubuntu-latest
+    runs-on: ${{ (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && vars.CI_RUNNER || 'ubuntu-latest' }}
     timeout-minutes: 5
     permissions:
       pull-requests: read # Read the PR (and its commits, for single-commit PRs) to validate the title.
