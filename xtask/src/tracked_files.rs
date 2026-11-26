@@ -169,7 +169,7 @@ mod tests {
             }],
             "a file named exactly `target` is flagged, `target.rs` and `targets/` are not"
         );
-        assert!(check(&files[..3]).is_empty());
+        assert_eq!(check(&files[..3]), Vec::<Violation>::new());
     }
 
     #[test]
