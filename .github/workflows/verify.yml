@@ -5,6 +5,11 @@
 # to Cargo.toml, Cargo.lock or the toolchain changes the verified code as much as an edit to the
 # domain crate does. `verify-success` is a required check, like `ci-success`. The nightly
 # schedule fuzzes for longer and keeps the fuzz corpus growing between runs.
+#
+# Runner choice (ADR 0038): Linux jobs run on `ubuntu-latest`, or on the standby self-hosted
+# runner named by the repository variable CI_RUNNER when it is set (unset by default). Pull requests from forks always get
+# `ubuntu-latest`: this repository is public, and a fork's code must never reach a self-hosted
+# runner. Keep that condition in every `runs-on` that reads CI_RUNNER.
 name: Verify
 
 on:
@@ -29,7 +34,7 @@ env:
 jobs:
   tla:
     name: TLA+ (TLC)
-    runs-on: ubuntu-latest
+    runs-on: ${{ (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && vars.CI_RUNNER || 'ubuntu-latest' }}
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -44,7 +49,7 @@ jobs:
 
   kani:
     name: Kani
-    runs-on: ubuntu-latest
+    runs-on: ${{ (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && vars.CI_RUNNER || 'ubuntu-latest' }}
     timeout-minutes: 45
     env:
       # Kani pins the nightly toolchain it needs; `cargo kani setup` installs it.
@@ -66,7 +71,7 @@ jobs:
 
   fuzz:
     name: fuzz
-    runs-on: ubuntu-latest
+    runs-on: ${{ (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && vars.CI_RUNNER || 'ubuntu-latest' }}
     timeout-minutes: 90
     env:
       CARGO_FUZZ_VERSION: 0.13.2
@@ -137,7 +142,7 @@ jobs:
     name: verify-success
     if: always()
     needs: [tla, kani, fuzz]
-    runs-on: ubuntu-latest
+    runs-on: ${{ (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && vars.CI_RUNNER || 'ubuntu-latest' }}
     timeout-minutes: 5
     steps:
       - name: Require every job to succeed
