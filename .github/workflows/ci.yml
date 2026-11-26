@@ -2,8 +2,8 @@
 # that need another toolchain or platform: MSRV, coverage, and the macOS and Windows runs.
 # Branch rules require `ci-success` (this workflow) and `verify-success` (verify.yml).
 #
-# Runner choice (ADR 0038): Linux jobs run on the self-hosted runner named by the repository
-# variable CI_RUNNER, or on `ubuntu-latest` when it is unset. Pull requests from forks always get
+# Runner choice (ADR 0038): Linux jobs run on `ubuntu-latest`, or on the standby self-hosted
+# runner named by the repository variable CI_RUNNER when it is set (unset by default). Pull requests from forks always get
 # `ubuntu-latest`: this repository is public, and a fork's code must never reach a self-hosted
 # runner. Keep that condition in every `runs-on` that reads CI_RUNNER.
 name: CI

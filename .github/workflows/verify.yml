@@ -6,8 +6,8 @@
 # domain crate does. `verify-success` is a required check, like `ci-success`. The nightly
 # schedule fuzzes for longer and keeps the fuzz corpus growing between runs.
 #
-# Runner choice (ADR 0038): Linux jobs run on the self-hosted runner named by the repository
-# variable CI_RUNNER, or on `ubuntu-latest` when it is unset. Pull requests from forks always get
+# Runner choice (ADR 0038): Linux jobs run on `ubuntu-latest`, or on the standby self-hosted
+# runner named by the repository variable CI_RUNNER when it is set (unset by default). Pull requests from forks always get
 # `ubuntu-latest`: this repository is public, and a fork's code must never reach a self-hosted
 # runner. Keep that condition in every `runs-on` that reads CI_RUNNER.
 name: Verify

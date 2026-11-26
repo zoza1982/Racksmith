@@ -8,10 +8,11 @@
 Every Linux job in `ci.yml`, `verify.yml` and `pr-title.yml` ran on `ubuntu-latest`, a
 GitHub-hosted runner, and the M1 plan kept them there: standard hosted runners are free for a
 public repository, and self-hosted capacity was reserved for the KVM lab (owner decision 10,
-ADR 0026). The owner has now decided (2026-11-26) that normal CI runs on the home K3s cluster too,
-as it already does for another of the maintainer's repositories: hosted availability depends on
-the account's billing state, the maintainer's cluster already runs an Actions Runner Controller
-(ARC), and the cluster keeps CI under the maintainer's control.
+ADR 0026). Another of the maintainer's repositories, a private one, moved its CI to the home K3s
+cluster when the account's billing blocked its hosted runners. This repository is not billed for
+standard hosted runners, so it does not need to move, but it should be able to move in one step
+if hosted runners ever become unavailable to it (billing state, outages, queueing). The owner
+decided (2026-11-26) to keep a self-hosted runner on standby for that case.
 
 This repository is **public**. A self-hosted runner executes whatever workflow code a run brings,
 and with `pull_request` a fork's run uses the fork's version of the workflows. GitHub's own
@@ -53,7 +54,7 @@ runs-on: ${{ matrix.os == 'ubuntu-latest' && (<same condition>) && vars.CI_RUNNE
   first two need those operating systems, and Scorecard's results publishing requires a hosted
   runner.
 
-Today `CI_RUNNER` is `racksmith-dietpi-6`: an ARC scale set registered to this repository only,
+The standby runner is `racksmith-dietpi-6`: an ARC scale set registered to this repository only,
 with ephemeral runner pods (one per job, destroyed after it), at most one at a time, capped at
 4 CPU and 8 GiB, pinned to one amd64 node and given no Kubernetes service-account token. It is
 defined in the cluster's repository (`helm/apps/arc/racksmith-runner-scale-set-values.yaml`). Its
@@ -62,16 +63,22 @@ image is the official ARC runner image plus what the hosted image provides and t
 (rust-toolchain.toml's channel, the MSRV and the fuzz nightly), so the jobs and the gate's
 arguments are unchanged.
 
+**`CI_RUNNER` is unset by default**, so CI runs on hosted runners, which are free for this
+repository, run about 15 Linux jobs at once and add no load to the maintainer's node. Setting
+`CI_RUNNER=racksmith-dietpi-6` switches same-repository runs to the standby runner; it was set
+once to prove the path (the Kani, fuzz, rustdoc and PR-title jobs passed on it, 2026-11-26) and
+then removed.
+
 This scale set is for ordinary CI. The KVM lab keeps its own scale set and runner model
 (M1-H-01, M1-H-04): it adds `/dev/kvm`, network namespaces and the job-started hook, none of
 which this runner has.
 
 ## Consequences
 
-- CI no longer depends on hosted-runner availability for Linux jobs, and switching back is
-  deleting one variable.
-- One runner on one home node is slower than hosted runners: a push starts about 15 Linux jobs,
-  which run one at a time, and Kani and coverage compete with nothing but each other. If the
+- CI keeps working if hosted runners become unavailable: setting one variable moves Linux jobs
+  to the standby runner, and deleting it moves them back.
+- While the variable is set, one runner on one home node is slower than hosted runners: a push
+  starts about 15 Linux jobs, which run one at a time, and Kani and coverage compete with nothing but each other. If the
   node is down or reboots (it overheats under sustained load), jobs queue or fail and are re-run.
   Raise `maxRunners` only after measuring the node's temperature under load.
 - Contributors from forks get hosted runners and so see the same checks with different timing;
